@@ -21,6 +21,55 @@
 #include "utils.h"
 #include "SerialVESC.h"
 #include "VescUart.h"
+/********* CONSTANTS *********/
+
+// Send position commands at 500hz (1s / 2000us)
+// const int UPDATE_PERIOD =  2000; // us
+// const int UPDATE_PERIOD =  10000; // us
+const int UPDATE_2000HZ = 500; //us
+const int UPDATE_1000HZ = 1000; //us
+const int UPDATE_500HZ = 2000; //us
+const int UPDATE_100HZ = 10000; //us
+
+
+// built-in led pin
+int led_pin = 13;
+#define LED_ON digitalWrite(led_pin,HIGH)
+#define LED_OFF digitalWrite(led_pin,LOW)
+
+// Configuration
+
+int VESC_ENCODER_PERIOD = 500; // us per encoder reading
+
+int COMPUTER_BAUDRATE = 500000;
+
+// 320k, 250k, 200k, 160k, 125k, 100k all work
+// 800k, 500k, 400k do not work because 100hz position messages are corrupted, not all received
+// 1000k does NOT work, no data received
+// VESC MUST BEGIN TRANSMITTING AFTER TEENSY
+// When vesc goes back into running mode, the message handler is all messed up
+// and is stuck in rx_state 0 trying to find the start byte
+// Somehow the teensy is getting payload length 3 messages, possibly stay alive ???
+// TODO: FIXED: eliminated start byte type 3 (payload length message is 2 bytes,
+// aka more than 256 bytes but thats way to fricken long
+
+int VESC_BAUDRATE =  250000;
+// Causes 50ms delay between data or just doesnt receive data
+// int VESC_BAUDRATE = 115200;
+
+// Unused when pos control is done on the VESC
+// NOTES 12-21
+// When running at 40A, P=0.05 and D=.001 work but any more P or D
+// causes vibrations. Running at 2000hz IS much better than 1000hz in terms
+// of getting encoder readings, but only a bit better in terms of pid speed
+const float MAX_CURRENT = 40.0; // 30 amps seems the max
+
+// VESC1 settings
+const int8_t VESC1_CHANNEL_ID = 0;
+const float VESC1_OFFSET = -108; // 108
+const int VESC1_DIRECTION = -1;
+
+/******** END OF CONSTANTS ***********/
 
 /******** GLOBAL VARISBLES *********/
 
@@ -36,9 +85,11 @@ elapsedMillis last_print_shit;
 elapsedMicros elapsed_100HZ = 0;
 elapsedMicros elapsed_500HZ = 0;
 elapsedMicros elapsed_1000HZ = 0;
+elapsedMicros elapsed_2000HZ = 0;
+
 
 // VESC motor objects
-VESC vesc1(&Serial4); // CAN flexcan
+VESC vesc1(VESC_ENCODER_PERIOD, &Serial4); // CAN flexcan
 
 // STATE MACHINE STATE VARIABLE
 enum controller_state_machine {
@@ -55,51 +106,6 @@ long running_timestamp;
 struct vesc_pos_gain_command vesc_pos_gain_target = {0.0, 0.0, 0.0};
 
 /********** END GLOBAL VARIABLES ******/
-
-/********* CONSTANTS *********/
-
-// Send position commands at 500hz (1s / 2000us)
-// const int UPDATE_PERIOD =  2000; // us
-// const int UPDATE_PERIOD =  10000; // us
-const int UPDATE_1000HZ = 1100; //us
-const int UPDATE_500HZ = 2000; //us
-const int UPDATE_100HZ = 10000; //us
-
-
-// built-in led pin
-int led_pin = 13;
-#define LED_ON digitalWrite(led_pin,HIGH)
-#define LED_OFF digitalWrite(led_pin,LOW)
-
-// Configuration
-int COMPUTER_BAUDRATE = 500000;
-
-// 320k, 250k, 200k, 160k, 125k, 100k all work
-// 800k, 500k, 400k do not work because 100hz position messages are corrupted, not all received
-// 1000k does NOT work, no data received
-// When you go back to staging then back to running it stops working
-// (causes frozen or 50ms delay)??? This
-// happens at 250hz and 115200hz (probably all) when printing time and angle only
-// VESC MUST BEGIN TRANSMITTING AFTER TEENSY??
-// When vesc goes back into running mode, the message handler is all messed up
-// and is stuck in rx_state 0 trying to find the start byte
-// Somehow the teensy is getting payload length 3 messages, possibly stay alive ???
-// TODO: FIXED: eliminated start byte type 3 (payload length message is 2 bytes,
-// aka more than 256 bytes but thats way to fricken long
-
-int VESC_BAUDRATE =  250000;
-// Causes 50ms delay between data or just doesnt receive data
-// int VESC_BAUDRATE = 115200;
-
-// Unused when pos control is done on the VESC
-const float MAX_CURRENT = 20.0; // 30 amps seems the max
-
-// VESC1 settings
-const int8_t VESC1_CHANNEL_ID = 0;
-const float VESC1_OFFSET = -108; // 108
-const int VESC1_DIRECTION = -1;
-
-/******** END OF CONSTANTS ***********/
 
 /**
  * Call this function in the main loop if you want to see the normalized motor angles
@@ -248,10 +254,19 @@ void STAGING_STATE() {
  * Executes any user code and executes on Serial commands
  */
 void RUNNING_STATE() {
+	// 2000hz loop
+	if(elapsed_2000HZ > UPDATE_2000HZ) {
+		elapsed_2000HZ = 0;
+
+		vesc1.set_pid_gains(0.02,0.001);
+		vesc1.pid_update(180.0);
+	}
   // 1000Hz loop
   if(elapsed_1000HZ > UPDATE_1000HZ) {
     elapsed_1000HZ = 0;
 
+		// vesc1.set_pid_gains(0.05,0.001);
+		// vesc1.pid_update(180.0);
     // encoder_printing();
     // VESC-side position PID control
 		// send_vesc_target(vesc1, vesc_pos_gain_target);
@@ -260,6 +275,7 @@ void RUNNING_STATE() {
 		// vesc1.pid_update(vesc_pos_gain_target.pos);
 
 		// Hard-coded values
+		// P=0.05 and D= 0.001 doesn't work with 20A but marginally with 15A
 		// vesc1.set_pid_gains(0.05,0.001);
 		// vesc1.pid_update(180.0);
 		// Serial.println(vesc1.read());
@@ -268,6 +284,7 @@ void RUNNING_STATE() {
 	if(elapsed_500HZ > UPDATE_500HZ) {
 		elapsed_500HZ = 0;
 
+		// Finally this works
 		// Serial.println(vesc1.read());
 		// encoder_printing();
 		// encoder_printing();
@@ -278,13 +295,12 @@ void RUNNING_STATE() {
 	if(elapsed_100HZ > UPDATE_100HZ) {
 		elapsed_100HZ = 0;
 
-		// Serial.println();
 		// Serial.println(vesc1.read());
-		// vesc1.print_debug();
+		vesc1.print_debug();
 
 		// SERIAL POSITION
 		float pos = vesc_pos_gain_target.pos;
-		vesc1.write(pos);
+		// vesc1.write(pos);
 		// impulse();
     // send_vesc_target(vesc1, vesc_pos_gain_target);
 	}

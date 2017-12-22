@@ -29,6 +29,7 @@ private:
 public:
   AngularPDController(float kp, float kd);
   float compute_command(const float& error, int dt_micros);
+  float compute_command(const float& error, float ang_vel);
 
   float get_error();
   float get_error_deriv();

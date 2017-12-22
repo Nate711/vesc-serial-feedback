@@ -60,6 +60,36 @@ float AngularPDController::compute_command(const float& error, int dt_micros) {
 }
 
 /**
+ * Compute the PID output given a new error value and dt
+ * @param  error     angle error
+ * @param  dt_micros number of micros since last measurement
+ * @return           PID output, saturated between -1, 1
+ */
+float AngularPDController::compute_command(const float& error, float ang_vel) {
+  static int MICROSPERSEC = 1000000;
+
+  // Compute p term
+  last_pterm = - pd_constants.Kp*error;
+
+  last_error_deriv = ang_vel;
+  last_angular_error = error;
+
+  // Compute d term
+  // TODO: Constain the D term
+  last_dterm = - pd_constants.Kd*last_error_deriv;
+
+  // Compute final command
+  last_command = last_pterm + last_dterm;
+
+  // Constrain the output between -1.0 and 1.0
+  // TODO: Check if the arduino constrain is still not working
+  last_command = last_command > 1.0 ? 1.0 : last_command;
+  last_command = last_command < -1.0 ? -1.0 : last_command;
+
+  return last_command;
+}
+
+/**
  * Return the last computed angle error
  * @return last computed angle error
  */

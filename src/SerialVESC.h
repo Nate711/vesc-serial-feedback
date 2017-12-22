@@ -55,6 +55,8 @@ private:
 	// Serial object
 	VESCUart vesc_uart;
 
+	int VESC_ENCODER_PERIOD;
+
   // keep track of elapsed milliseconds since last prints
   elapsedMillis last_print_debug=0;
 	elapsedMillis print_w=0;
@@ -94,13 +96,19 @@ private:
 	void _send_position_pid_constants(float kp, float ki, float kd,
 		float pos);
 
+	/**
+	 * Updates rotation state and calculates speed
+	 * @param deg absolute encoder angle sent over CAN
+	 */
+  void update_angle(float angle);
+
 
 public:
 	/**
 	 * Constructor. Sets the serial port object and calls constructor
 	 * @param serial_port : reference to SERIAL object
 	 */
-  VESC(HardwareSerial* serial_port);
+  VESC(int encoder_period, HardwareSerial* serial_port);
 
 	/**
 	 * Processes the given byte from the serial stream
@@ -153,12 +161,6 @@ public:
 	 * the VESC
 	 */
 	void detach();
-
-	/**
-	 * Updates rotation state and calculates speed
-	 * @param deg absolute encoder angle sent over CAN
-	 */
-  void update_angle(float angle);
 
   /**
    * Not implemented.

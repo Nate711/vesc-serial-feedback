@@ -137,7 +137,8 @@ void VESC::_send_position_pid_constants(float kp, float ki, float kd, float pos)
   * @param cantx : reference to CAN object
   */
  // TODO add serial object to constructor
-VESC::VESC(HardwareSerial* serial_port) : pos_controller(0,0), vesc_uart(serial_port){
+VESC::VESC(int vesc_encoder_reading_period,
+  HardwareSerial* serial_port) : pos_controller(0,0), vesc_uart(serial_port){
 
   // the first time_delta will be large and will give small deg per sec which is ok
   time_last_angle_read = 0;
@@ -145,6 +146,7 @@ VESC::VESC(HardwareSerial* serial_port) : pos_controller(0,0), vesc_uart(serial_
   vesc_angle = 0.0;
   true_degps = 0;
 
+  VESC_ENCODER_PERIOD = vesc_encoder_reading_period;
 }
 /**
  * [packet_process_byte description]
@@ -154,11 +156,10 @@ void VESC::packet_process_byte(uint8_t rx_data) {
   if(vesc_uart.packet_process_byte(rx_data,0)) {
 
     update_angle(vesc_uart.get_rotor_position());
-    Serial.print(millis());
-    Serial.print("\t");
-    Serial.println(vesc_angle);
-    // Serial.print(vesc_uart.get_rotor_position());
-    // Serial.print('\t');
+
+    // Debug code for receiving messages
+    // Serial.print(micros());
+    // Serial.print("\t");
     // Serial.println(vesc_angle);
   }
 }
@@ -237,7 +238,10 @@ void VESC::update_angle(float angle) {
 
   // Hardcoded sampling rate of 1000hz, make sure to change if changing
   // the send frequency of the VECS
-  true_degps = 1000*utils_angle_difference(corrected,vesc_angle);
+  float temp = VESC_ENCODER_PERIOD*utils_angle_difference(corrected,vesc_angle);
+  true_degps = temp;
+  // add lowpass filter didn't help much or made the vibrations worse!
+  // Tested 0.5 and 0.8 * temp
 
   // Update angle state
   vesc_angle = corrected;
@@ -283,7 +287,7 @@ void VESC::pid_update_normalized(float set_point) {
 void VESC::pid_update(float set_point) {
   float error = utils_angle_difference(vesc_angle,set_point);
   float cur_command = max_current *
-            pos_controller.compute_command(error,last_time_delta_micros);
+            pos_controller.compute_command(error,true_degps);
 
   // FUCK EVERYTHINGGGGG COMPARING FLOATS DOESNT WORK
   _send_current(cur_command);
