@@ -73,7 +73,23 @@ int led_pin = 13;
 
 // Configuration
 int COMPUTER_BAUDRATE = 500000;
-int VESC_BAUDRATE = 250000;
+
+// 320k, 250k, 200k, 160k, 125k, 100k all work
+// 800k, 500k, 400k do not work because 100hz position messages are corrupted, not all received
+// 1000k does NOT work, no data received
+// When you go back to staging then back to running it stops working
+// (causes frozen or 50ms delay)??? This
+// happens at 250hz and 115200hz (probably all) when printing time and angle only
+// VESC MUST BEGIN TRANSMITTING AFTER TEENSY??
+// When vesc goes back into running mode, the message handler is all messed up
+// and is stuck in rx_state 0 trying to find the start byte
+// Somehow the teensy is getting payload length 3 messages, possibly stay alive ???
+// TODO: FIXED: eliminated start byte type 3 (payload length message is 2 bytes,
+// aka more than 256 bytes but thats way to fricken long
+
+int VESC_BAUDRATE =  250000;
+// Causes 50ms delay between data or just doesnt receive data
+// int VESC_BAUDRATE = 115200;
 
 // Unused when pos control is done on the VESC
 const float MAX_CURRENT = 20.0; // 30 amps seems the max
@@ -262,6 +278,8 @@ void RUNNING_STATE() {
 	if(elapsed_100HZ > UPDATE_100HZ) {
 		elapsed_100HZ = 0;
 
+		// Serial.println();
+		// Serial.println(vesc1.read());
 		// vesc1.print_debug();
 
 		// SERIAL POSITION

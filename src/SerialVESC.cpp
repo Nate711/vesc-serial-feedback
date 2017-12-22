@@ -154,7 +154,9 @@ void VESC::packet_process_byte(uint8_t rx_data) {
   if(vesc_uart.packet_process_byte(rx_data,0)) {
 
     update_angle(vesc_uart.get_rotor_position());
-    Serial.println(millis());
+    Serial.print(millis());
+    Serial.print("\t");
+    Serial.println(vesc_angle);
     // Serial.print(vesc_uart.get_rotor_position());
     // Serial.print('\t');
     // Serial.println(vesc_angle);
@@ -223,32 +225,19 @@ float VESC::read() {
  * automatically normalizes the given angle (no > 180deg moves)
  */
 void VESC::update_angle(float angle) {
-  unsigned long now_time = micros();
-
   float corrected = angle;
 
   // 26 us without this line, 31 with this line = 5 us time
   utils_norm_angle(corrected);
 
-  // Compute time since last angle update and
-  last_time_delta_micros = now_time - time_last_angle_read;
-  // POTENTIAL PROBLEM: if the main loop calls update_angle with the same angle
-  // at different times then the VESC object will think the speed is 0
-  time_last_angle_read = now_time;
-
   // Compute velocity in deg per s
   // This computation is subject to noise!
   // 37-38 us loop time
-  // this line takes 6-8 us
-  if(last_time_delta_micros==0) last_time_delta_micros = 1;
+  // this line takes 6-8 us OUTDATED 12-21
 
-  true_degps = (int)(1000000*utils_angle_difference(corrected,vesc_angle)) /
-                                        (int)(last_time_delta_micros);
-
-
-  // 38-39 us loop time
-  // true_degps = utils_angle_difference(corrected,true_deg) /
-  //                                     (last_time_delta/1000000.0);
+  // Hardcoded sampling rate of 1000hz, make sure to change if changing
+  // the send frequency of the VECS
+  true_degps = 1000*utils_angle_difference(corrected,vesc_angle);
 
   // Update angle state
   vesc_angle = corrected;

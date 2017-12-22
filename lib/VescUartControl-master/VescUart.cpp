@@ -25,6 +25,10 @@ along with this program.If not, see <http://www.gnu.org/licenses/>.
 
 VESCUart::VESCUart(HardwareSerial* port_ptr) {
 	serial_port = port_ptr;
+
+  // Hard coded initialize rx_state as 0 for first handler
+  // TODO get rid of multiple handlers
+	handler_states[0].rx_state = 0;
 }
 /**
  * Processes one byte of data from any given communication channel.
@@ -42,12 +46,15 @@ bool VESCUart::packet_process_byte(uint8_t rx_data, int handler_num) {
 			// handler_states[handler_num].rx_timeout = PACKET_RX_TIMEOUT;
 			handler_states[handler_num].rx_data_ptr = 0;
 			handler_states[handler_num].payload_length = 0;
-		} else if (rx_data == 3) {
-			// 2 byte PL len
-			handler_states[handler_num].rx_state++;
-			// handler_states[handler_num].rx_timeout = PACKET_RX_TIMEOUT;
-			handler_states[handler_num].rx_data_ptr = 0;
-			handler_states[handler_num].payload_length = 0;
+
+// TODO: find out what was sending the (3) over serial line, was it crc? command type?
+		// } else if (rx_data == 3) {
+		// 	// 2 byte PL len
+		// 	handler_states[handler_num].rx_state++;
+		// 	// handler_states[handler_num].rx_timeout = PACKET_RX_TIMEOUT;
+		// 	handler_states[handler_num].rx_data_ptr = 0;
+		// 	handler_states[handler_num].payload_length = 0;
+		// 	Serial.println("SC3");
 		} else {
 			handler_states[handler_num].rx_state = 0;
 		}
