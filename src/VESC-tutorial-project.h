@@ -39,8 +39,9 @@ void ESTOP_STATE();
 void print_shit();
 
 // Serial and CAN functions
-void process_serial();
+int process_serial();
 void process_CAN_messages();
+int process_VESC_serial();
 
 
 #endif

@@ -21,6 +21,8 @@
 #include "utils.h"
 #include "SerialVESC.h"
 #include "VescUart.h"
+#include "Config.h"
+
 /********* CONSTANTS *********/
 
 // Send position commands at 500hz (1s / 2000us)
@@ -31,40 +33,12 @@ const int UPDATE_1000HZ = 1000; //us
 const int UPDATE_500HZ = 2000; //us
 const int UPDATE_100HZ = 10000; //us
 
-
 // built-in led pin
 int led_pin = 13;
 #define LED_ON digitalWrite(led_pin,HIGH)
 #define LED_OFF digitalWrite(led_pin,LOW)
 
-// Configuration
-
-int VESC_ENCODER_PERIOD = 500; // us per encoder reading
-
-int COMPUTER_BAUDRATE = 500000;
-
-// 320k, 250k, 200k, 160k, 125k, 100k all work
-// 800k, 500k, 400k do not work because 100hz position messages are corrupted, not all received
-// 1000k does NOT work, no data received
-// VESC MUST BEGIN TRANSMITTING AFTER TEENSY
-// When vesc goes back into running mode, the message handler is all messed up
-// and is stuck in rx_state 0 trying to find the start byte
-// Somehow the teensy is getting payload length 3 messages, possibly stay alive ???
-// TODO: FIXED: eliminated start byte type 3 (payload length message is 2 bytes,
-// aka more than 256 bytes but thats way to fricken long
-
-int VESC_BAUDRATE =  250000;
-// Causes 50ms delay between data or just doesnt receive data
-// int VESC_BAUDRATE = 115200;
-
-// Unused when pos control is done on the VESC
-// NOTES 12-21
-// When running at 40A, P=0.05 and D=.001 work but any more P or D
-// causes vibrations. Running at 2000hz IS much better than 1000hz in terms
-// of getting encoder readings, but only a bit better in terms of pid speed
-const float MAX_CURRENT = 40.0; // 30 amps seems the max
-
-// VESC1 settings
+////// VESC1 configuration //////
 const int8_t VESC1_CHANNEL_ID = 0;
 const float VESC1_OFFSET = -108; // 108
 const int VESC1_DIRECTION = -1;
@@ -86,7 +60,6 @@ elapsedMicros elapsed_100HZ = 0;
 elapsedMicros elapsed_500HZ = 0;
 elapsedMicros elapsed_1000HZ = 0;
 elapsedMicros elapsed_2000HZ = 0;
-
 
 // VESC motor objects
 VESC vesc1(VESC_ENCODER_PERIOD, &Serial4); // CAN flexcan
@@ -117,6 +90,25 @@ void print_shit() {
     // Serial.println(loop_time);
     Serial.println(vesc1.read());
   }
+}
+
+/**
+ * Prints number of idle and busy loops every second
+ */
+elapsedMillis last_processor_usage_print = 0;
+void print_processor_usage(long &_busy_loops, long &_idle_loops) {
+	if(last_processor_usage_print > 1000) {
+		last_processor_usage_print = 0;
+
+		Serial.print("Busy loops: ");
+		Serial.print(_busy_loops);
+		Serial.print("\t Idle loops: ");
+		Serial.println(_idle_loops);
+
+		// Reset loop counts
+		_busy_loops = 0;
+		_idle_loops = 0;
+	}
 }
 
 /**
@@ -155,8 +147,10 @@ void transition_to_STAGING() {
 
 /**
  * Process serial commands send from a computer
+ *
+ * Returns 1 if serial byte received, 0 otherwise
  */
-void process_serial() {
+int process_serial() {
   if(Serial.available()) {
 		// NOTE: message string variable will not include '\n' char
 		// TODO: change this code from blocking code to GOOD, nonblocking code
@@ -187,7 +181,7 @@ void process_serial() {
 
 			print_pos_gain_target();
 
-			return;
+			return 1;
 		}
 
 		// Send 'e' to start encoder readings
@@ -213,17 +207,22 @@ void process_serial() {
       transition_to_STAGING();
 		}
 
+		return 1;
     // Clear the buffer after the first byte is read.
     // So don't send multiple commands at once and expect any but the first to be executed
     // Serial.clear();
   }
+	return 0;
 }
 
-void process_VESC_serial() {
+int process_VESC_serial() {
+	int received = 0;
   while(Serial4.available()) {
 		uint8_t data = Serial4.read();
 		vesc1.packet_process_byte(data);
+		received = 1;
 	}
+	return received;
 }
 
 /**
@@ -296,10 +295,12 @@ void RUNNING_STATE() {
 		elapsed_100HZ = 0;
 
 		// Serial.println(vesc1.read());
-		vesc1.print_debug();
+		if(PRINT_DEBUG) {
+			vesc1.print_debug();
+		}
 
 		// SERIAL POSITION
-		float pos = vesc_pos_gain_target.pos;
+		// float pos = vesc_pos_gain_target.pos;
 		// vesc1.write(pos);
 		// impulse();
     // send_vesc_target(vesc1, vesc_pos_gain_target);
@@ -348,15 +349,19 @@ void setup() {
 	Serial4.clear();
 }
 
+long busy_loops = 0;
+long idle_loops = 0;
 /**
  * Called indefinitely
  */
 void loop() {
+		// Keeps track whether anything happened this loop
+		int busy = 0;
 		// Important: read any data sent by the VESC
-		process_VESC_serial();
+		busy |= process_VESC_serial();
 
     // IMPORTANT: read any commands sent by the computer
-    process_serial();
+    busy |= process_serial();
 
     // IMPORTANT: for some reason the code doesn't work without this function call
     // Probably has to do with a delay thing
@@ -376,6 +381,12 @@ void loop() {
         ESTOP_STATE();
         break;
     }
+		busy_loops += busy;
+		idle_loops += (1-busy);
+
+		if(PRINT_CPU_USAGE) {
+			print_processor_usage(busy_loops,idle_loops);
+		}
 }
 
 /****** APPLICATION CODE ******/
