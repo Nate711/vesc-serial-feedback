@@ -32,7 +32,7 @@ void transition_to_STAGING();
 
 // State functions
 void STAGING_STATE();
-void RUNNING_STATE();
+int RUNNING_STATE();
 void ESTOP_STATE();
 
 // Shit functions

@@ -93,7 +93,35 @@ void print_shit() {
 }
 
 /**
- * Prints number of idle and busy loops every second
+ * Prints number of idle and busy loops per second
+ *
+ * As of commit b7f7583 1-5-18:
+ * Sometimes teensy doesn't receive any vesc encoder readings in staging mode
+ * Busy:0, Idle: 250k
+ *
+ * Teensy-VESC bus at 2000hz duplex, 250kbps
+ * STAGING state
+ * Busy: 20020 +- 10, Idle: 214k +- 20
+ * RUNNING phase
+ * Busy: 21.9k +- 200, Idle: ~125k +- 300
+ * ESTOP state
+ * Busy: 11, Idle: 0
+ *
+ * Vesc to teensy at 2000hz, Teensy to vesc at 1000hz, 250kbps
+ * STAGING state
+ * Busy: 20020 +- 10, Idle: 214k +- 20
+ * RUNNING phase
+ * Busy: 22.6k +- 200, Idle: ~128k +- 300
+ * ESTOP state
+ * Busy: 11, Idle: 0
+ *
+ * Vesc to teensy at 2000hz, Teensy to vesc at 2000hz, 320kbps
+ * STAGING state
+ * Busy: 20020 +- 2, Idle: 214k +- 20
+ * RUNNING phase
+ * Busy: 21.9k +- 200, Idle: ~125k +- 300
+ * ESTOP state
+ * Busy: 11, Idle: 0
  */
 elapsedMillis last_processor_usage_print = 0;
 void print_processor_usage(long &_busy_loops, long &_idle_loops) {
@@ -251,21 +279,27 @@ void STAGING_STATE() {
 
 /**
  * Executes any user code and executes on Serial commands
+ *
+ * Returns 1 if any timed loop (2000hz, 500hz, etc) executed, otherwise 0
  */
-void RUNNING_STATE() {
+int RUNNING_STATE() {
+	int executed_code = 0;
 	// 2000hz loop
 	if(elapsed_2000HZ > UPDATE_2000HZ) {
 		elapsed_2000HZ = 0;
 
 		vesc1.set_pid_gains(0.02,0.001);
 		vesc1.pid_update(180.0);
+
+		executed_code |= 1;
 	}
   // 1000Hz loop
   if(elapsed_1000HZ > UPDATE_1000HZ) {
     elapsed_1000HZ = 0;
 
-		// vesc1.set_pid_gains(0.05,0.001);
+		// vesc1.set_pid_gains(0.02,0.001);
 		// vesc1.pid_update(180.0);
+
     // encoder_printing();
     // VESC-side position PID control
 		// send_vesc_target(vesc1, vesc_pos_gain_target);
@@ -278,6 +312,8 @@ void RUNNING_STATE() {
 		// vesc1.set_pid_gains(0.05,0.001);
 		// vesc1.pid_update(180.0);
 		// Serial.println(vesc1.read());
+
+		executed_code |= 1;
   }
 	// 500Hz loop
 	if(elapsed_500HZ > UPDATE_500HZ) {
@@ -289,6 +325,7 @@ void RUNNING_STATE() {
 		// encoder_printing();
 		// send_vesc_target(vesc1, vesc_pos_gain_target);
 
+		executed_code |= 1;
 	}
 	// 100Hz loop
 	if(elapsed_100HZ > UPDATE_100HZ) {
@@ -304,7 +341,10 @@ void RUNNING_STATE() {
 		// vesc1.write(pos);
 		// impulse();
     // send_vesc_target(vesc1, vesc_pos_gain_target);
+
+		executed_code |= 1;
 	}
+	return executed_code;
 }
 
 /**
@@ -372,7 +412,7 @@ void loop() {
         STAGING_STATE();
         break;
       case RUNNING:
-        RUNNING_STATE();
+        busy |= RUNNING_STATE();
         break;
       case ESTOP:
         ESTOP_STATE();
