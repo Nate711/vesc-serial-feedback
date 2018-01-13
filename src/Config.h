@@ -30,6 +30,6 @@
 // reduces motor vibrations, probably because of better differentiation, but
 // running the Teensy-side PID at 2000hz doesn't improve PID performance very
 // much
-#define MAX_CURRENT 40.0 // 30 amps seems the max
+#define MAX_CURRENT 20.0 // 30 amps seems the max
 
 #endif

@@ -62,7 +62,9 @@ elapsedMicros elapsed_1000HZ = 0;
 elapsedMicros elapsed_2000HZ = 0;
 
 // VESC motor objects
-VESC vesc1(VESC_ENCODER_PERIOD, &Serial4); // CAN flexcan
+VESC vesc1(VESC_ENCODER_PERIOD, &Serial4);
+
+VESC vesc2(VESC_ENCODER_PERIOD, &Serial1);
 
 // STATE MACHINE STATE VARIABLE
 enum controller_state_machine {
@@ -122,6 +124,14 @@ void print_shit() {
  * Busy: 21.9k +- 200, Idle: ~125k +- 300
  * ESTOP state
  * Busy: 11, Idle: 0
+ *
+ * TWO VESC to teensy at 2000hz, 320kbps
+ * STAGING STATE
+ * Busy: 25k, Idle: 186l
+ * RUNNING phase
+ * Busy: 26k +- 500, Idle: 103k +- 500
+ * ESTOP state
+ * Busy: 11, Idle: 0
  */
 elapsedMillis last_processor_usage_print = 0;
 void print_processor_usage(long &_busy_loops, long &_idle_loops) {
@@ -152,6 +162,7 @@ void transition_to_running() {
 	vesc_pos_gain_target.pos = 0;
 
 	Serial4.clear();
+	Serial1.clear();
 }
 
 /**
@@ -250,6 +261,12 @@ int process_VESC_serial() {
 		vesc1.packet_process_byte(data);
 		received = 1;
 	}
+
+	while(Serial1.available()) {
+		uint8_t data = Serial1.read();
+		vesc2.packet_process_byte(data);
+		received = 1;
+	}
 	return received;
 }
 
@@ -290,6 +307,10 @@ int RUNNING_STATE() {
 
 		vesc1.set_pid_gains(0.02,0.001);
 		vesc1.pid_update(180.0);
+
+		vesc2.set_pid_gains(-0.02, -0.001);
+		vesc2.pid_update(180.0);
+
 
 		executed_code |= 1;
 	}
@@ -333,7 +354,8 @@ int RUNNING_STATE() {
 
 		// Serial.println(vesc1.read());
 		if(PRINT_DEBUG) {
-			vesc1.print_debug();
+			// vesc1.print_debug();
+			vesc2.print_debug();
 		}
 
 		// SERIAL POSITION
@@ -352,6 +374,7 @@ int RUNNING_STATE() {
  */
 void ESTOP_STATE() {
   vesc1.write_current(0.0f);
+	vesc2.write_current(0.0f);
 
 	// Pause for 100ms
 	long now = millis();
@@ -365,6 +388,9 @@ void setup() {
   // TODO initialize serial4
 	Serial4.begin(VESC_BAUDRATE);
 	Serial4.clear();
+
+	Serial1.begin(VESC_BAUDRATE);
+	Serial1.clear();
 
 	// Init Serial
 	Serial.begin(COMPUTER_BAUDRATE);
@@ -383,10 +409,16 @@ void setup() {
                   VESC1_DIRECTION,
                   MAX_CURRENT);
 
+	vesc2.attach(0,
+							 0,
+						 	 VESC1_DIRECTION,
+						 	 MAX_CURRENT);
+
 	// Wait for shit to get set up
   delay(1000);
 
 	Serial4.clear();
+	Serial1.clear();
 }
 
 long busy_loops = 0;
