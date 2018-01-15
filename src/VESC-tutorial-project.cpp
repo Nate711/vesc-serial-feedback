@@ -38,11 +38,6 @@ int led_pin = 13;
 #define LED_ON digitalWrite(led_pin,HIGH)
 #define LED_OFF digitalWrite(led_pin,LOW)
 
-////// VESC1 configuration //////
-const int8_t VESC1_CHANNEL_ID = 0;
-const float VESC1_OFFSET = -108; // 108
-const int VESC1_DIRECTION = -1;
-
 /******** END OF CONSTANTS ***********/
 
 /******** GLOBAL VARISBLES *********/
@@ -63,7 +58,6 @@ elapsedMicros elapsed_2000HZ = 0;
 
 // VESC motor objects
 VESC vesc1(VESC_ENCODER_PERIOD, &Serial4);
-
 VESC vesc2(VESC_ENCODER_PERIOD, &Serial1);
 
 // STATE MACHINE STATE VARIABLE
@@ -404,14 +398,12 @@ void setup() {
 
 
   // Initialize VESC controller objects
-  vesc1.attach(VESC1_CHANNEL_ID,
-                  VESC1_OFFSET,
-                  VESC1_DIRECTION,
-                  MAX_CURRENT);
+  vesc1.attach(VESC1_OFFSET,
+               VESC1_DIRECTION,
+               MAX_CURRENT);
 
-	vesc2.attach(0,
-							 0,
-						 	 VESC1_DIRECTION,
+	vesc2.attach(VESC2_OFFSET,
+						 	 VESC2_DIRECTION,
 						 	 MAX_CURRENT);
 
 	// Wait for shit to get set up

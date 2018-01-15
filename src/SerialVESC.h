@@ -37,11 +37,8 @@ private:
   // it might be a bad idea to have direction multipliers... think about it
   int encoder_direction;
 
-	// CAN bus channel ID
-  int8_t controller_channel_ID;
-
   // Default current limit
-  float max_current = 10; // amps
+  float max_current = 0; // amps
 
   // corrected position and velocity of the motor
   float vesc_angle=0;
@@ -153,7 +150,7 @@ public:
    * @param _encoder_direction int
    * @param _max_current       float, maximum current to send
    */
-	void attach(int CANID, float _encoder_offset, int _encoder_direction,
+	void attach(float _encoder_offset, int _encoder_direction,
 		float _max_current);
 
 	/**

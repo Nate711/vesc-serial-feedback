@@ -21,9 +21,6 @@
 #include "utils.h"
 #include "VescUart.h"
 
-// Doesn't work when my_msg is global
-// static CAN_message_t my_msg;
-
 /*************** PRIVATE METHODS ****************/
 
 /**
@@ -85,8 +82,6 @@ void VESC::_send_position(float pos) {
 /**
  * Sends current command to the VESC
  */
-// Making this global also doesn't work
-// CAN_message_t msg;
 void VESC::_send_current(float current) {
   vesc_uart.set_current(current);
 }
@@ -131,11 +126,14 @@ void VESC::_send_position_pid_constants(float kp, float ki, float kd, float pos)
 /**
  * Constructs VESC object with initial params
  * I dont understand member initializer lists :( but CANtx breaks without it
+ *
+ * @param vesc_encoder_reading_period : Tell the VESC object how often it is
+ *                                      getting new encoder readings.
+ *                                      If the VESC is sending at 2000hz,
+ *                                      use 500us
+ * @param serial_port : reference to serial port to use to communicate to the
+ *                      teensy
  */
- /**
-  * Constructor. Sets the cantx object and calls its constructor
-  * @param cantx : reference to CAN object
-  */
  // TODO add serial object to constructor
 VESC::VESC(int vesc_encoder_reading_period,
   HardwareSerial* serial_port) : pos_controller(0,0), vesc_uart(serial_port){
@@ -149,8 +147,11 @@ VESC::VESC(int vesc_encoder_reading_period,
   VESC_ENCODER_PERIOD = vesc_encoder_reading_period;
 }
 /**
- * [packet_process_byte description]
- * @param rx_data [description]
+ * Processes a given byte over the teensy-vesc serial port.
+ * TODO: Don't update position if the type of message received wasn't a
+ * position update
+ *
+ * @param rx_data byte from VESC sent over serial bus
  */
 void VESC::packet_process_byte(uint8_t rx_data) {
   if(vesc_uart.packet_process_byte(rx_data,0)) {
@@ -166,17 +167,14 @@ void VESC::packet_process_byte(uint8_t rx_data) {
 
 /**
  * Sets up the vesc object to talk over this CAN ID channel
- * @param CANID              integer, channel ID
  * @param _encoder_offset    float, encoder offset
  * @param _encoder_direction int
  * @param _max_current       float, maximum current to send
  */
-void VESC::attach(int CANID, float _encoder_offset, int _encoder_direction, float _max_current) {
+void VESC::attach(float _encoder_offset, int _encoder_direction, float _max_current) {
   encoder_offset = _encoder_offset;
   encoder_direction = _encoder_direction;
   max_current = _max_current;
-
-  controller_channel_ID = CANID;
 }
 
 /**
