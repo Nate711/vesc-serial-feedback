@@ -57,8 +57,8 @@ elapsedMicros elapsed_1000HZ = 0;
 elapsedMicros elapsed_2000HZ = 0;
 
 // VESC motor objects
-VESC vesc1(VESC_ENCODER_PERIOD, &Serial4);
-VESC vesc2(VESC_ENCODER_PERIOD, &Serial1);
+VESC vesc1(VESC_ENCODER_PERIOD, &VESC1_SERIAL);
+VESC vesc2(VESC_ENCODER_PERIOD, &VESC2_SERIAL);
 
 // STATE MACHINE STATE VARIABLE
 enum controller_state_machine {
@@ -155,8 +155,8 @@ void transition_to_running() {
 	vesc_pos_gain_target.k_p = 0;
 	vesc_pos_gain_target.pos = 0;
 
-	Serial4.clear();
-	Serial1.clear();
+	VESC1_SERIAL.clear();
+	VESC2_SERIAL.clear();
 }
 
 /**
@@ -250,14 +250,14 @@ int process_serial() {
 
 int process_VESC_serial() {
 	int received = 0;
-  while(Serial4.available()) {
-		uint8_t data = Serial4.read();
+  while(VESC1_SERIAL.available()) {
+		uint8_t data = VESC1_SERIAL.read();
 		vesc1.packet_process_byte(data);
 		received = 1;
 	}
 
-	while(Serial1.available()) {
-		uint8_t data = Serial1.read();
+	while(VESC2_SERIAL.available()) {
+		uint8_t data = VESC2_SERIAL.read();
 		vesc2.packet_process_byte(data);
 		received = 1;
 	}
@@ -380,11 +380,11 @@ void ESTOP_STATE() {
  */
 void setup() {
   // TODO initialize serial4
-	Serial4.begin(VESC_BAUDRATE);
-	Serial4.clear();
+	VESC1_SERIAL.begin(VESC_BAUDRATE);
+	VESC1_SERIAL.clear();
 
-	Serial1.begin(VESC_BAUDRATE);
-	Serial1.clear();
+	VESC2_SERIAL.begin(VESC_BAUDRATE);
+	VESC2_SERIAL.clear();
 
 	// Init Serial
 	Serial.begin(COMPUTER_BAUDRATE);
@@ -409,8 +409,8 @@ void setup() {
 	// Wait for shit to get set up
   delay(1000);
 
-	Serial4.clear();
-	Serial1.clear();
+	VESC1_SERIAL.clear();
+	VESC2_SERIAL.clear();
 }
 
 long busy_loops = 0;
@@ -620,63 +620,3 @@ void impulse() {
     return;
   }
 }
-
-/** NON BLOCKING SERIAL
- * // Example 3 - Receive with start- and end-markers
-
-const byte numChars = 32;
-char receivedChars[numChars];
-
-boolean newData = false;
-
-void setup() {
-Serial.begin(9600);
-Serial.println("<Arduino is ready>");
-}
-
-void loop() {
-recvWithStartEndMarkers();
-showNewData();
-}
-
-void recvWithStartEndMarkers() {
-static boolean recvInProgress = false;
-static byte ndx = 0;
-char startMarker = '<';
-char endMarker = '>';
-char rc;
-
-while (Serial.available() > 0 && newData == false) {
-		rc = Serial.read();
-
-		if (recvInProgress == true) {
-				if (rc != endMarker) {
-						receivedChars[ndx] = rc;
-						ndx++;
-						if (ndx >= numChars) {
-								ndx = numChars - 1;
-						}
-				}
-				else {
-						receivedChars[ndx] = '\0'; // terminate the string
-						recvInProgress = false;
-						ndx = 0;
-						newData = true;
-				}
-		}
-
-		else if (rc == startMarker) {
-				recvInProgress = true;
-		}
-}
-}
-
-void showNewData() {
-if (newData == true) {
-		Serial.print("This just in ... ");
-		Serial.println(receivedChars);
-		newData = false;
-}
-}
- * @param [name] [description]
- */

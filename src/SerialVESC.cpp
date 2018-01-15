@@ -287,7 +287,6 @@ void VESC::pid_update(float set_point) {
   float cur_command = max_current *
             pos_controller.compute_command(error,true_degps);
 
-  // FUCK EVERYTHINGGGGG COMPARING FLOATS DOESNT WORK
   _send_current(cur_command);
 }
 

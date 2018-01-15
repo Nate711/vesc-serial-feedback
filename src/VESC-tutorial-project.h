@@ -40,7 +40,6 @@ void print_shit();
 
 // Serial and CAN functions
 int process_serial();
-void process_CAN_messages();
 int process_VESC_serial();
 
 
