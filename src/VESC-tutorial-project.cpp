@@ -300,10 +300,10 @@ int RUNNING_STATE() {
 		elapsed_2000HZ = 0;
 
 		vesc1.set_pid_gains(0.02,0.001);
-		vesc1.pid_update(180.0);
+		vesc1.pid_update(vesc_pos_gain_target.pos);
 
 		vesc2.set_pid_gains(-0.02, -0.001);
-		vesc2.pid_update(180.0);
+		vesc2.pid_update(vesc_pos_gain_target.pos);
 
 
 		executed_code |= 1;
