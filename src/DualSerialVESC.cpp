@@ -37,12 +37,8 @@ float DualVESC::vesc_to_normalized_angle(float raw_angle,
   if(encoder_direction == -1) {
     normalized = utils_angle_difference(0, normalized);
   }
-
-  // add encoder offset
-  normalized += encoder_offset;
-
-  // normalize to [0 360)
-  utils_norm_angle(normalized);
+  normalized += encoder_offset; // add encoder offset
+  utils_norm_angle(normalized); // normalize to [0 360)
 
   return normalized;
 }
@@ -57,14 +53,11 @@ float DualVESC::normalized_to_vesc_angle(float normalized_angle,
                                          float encoder_direction) {
   float raw_angle = normalized_angle;
 
-  // subtract offset
-  raw_angle -= encoder_offset;
-
+  raw_angle -= encoder_offset; // subtract offset
   // reverse if opposite direction
   if(encoder_direction == -1) {
     raw_angle = utils_angle_difference(0, raw_angle);
   }
-
   // normalize angle to 0 to 360
   utils_norm_angle(raw_angle);
 
@@ -72,58 +65,13 @@ float DualVESC::normalized_to_vesc_angle(float normalized_angle,
 }
 
 /**
- * Sends CAN position command to the VESC
- * @param pos desired position, automatically normalizes it
- */
-
-// TODO: Doesn't seem to work? Motor will randomly turn off. Probably not resetting the timeout
-// TODO: Test pos -> norm_pos fix
-
-void DualVESC::_send_position(float theta, float gamma) {
-  // vesc_uart_A.set_position(pos);
-}
-
-/**
  * Sends current command to the VESC
  */
 void DualVESC::_send_current(float current_A, float current_B) {
-  // vesc_uart_A.set_current(current);
+  vesc_uart_A.set_current(current_A);
+  vesc_uart_B.set_current(current_B);
 }
 
-
-// TODO: Test if I need to normalize pos
-/**
- * Sends a CAN message with the new pid constants and position to the VESC
- * @param kp
- * @param ki
- * @param kd
- * @param pos
- */
-void DualVESC::_send_position_pid_constants(float kp, float ki, float kd, float pos) {
-  // CAN_message_t msg;
-  // int MULTIPLIER = 100000; // max valu is .3 for any value (2^15 / 100000)
-  // msg.id = controller_channel_ID | ((int32_t) CAN_PACKET_SET_P_PID_K<<8);
-  // msg.len = 8;
-  // int32_t index = 0;
-  // buffer_append_int16(msg.buf,(int16_t)(kp*MULTIPLIER),&index);
-  // buffer_append_int16(msg.buf,(int16_t)(ki*MULTIPLIER),&index);
-  // buffer_append_int16(msg.buf,(int16_t)(kd*MULTIPLIER),&index);
-  //
-  //
-  // // JANK AF ADDING POS TO CONSTANT COMMAND
-  // int POS_MULTIPLIER = 50;
-  // // Multiplying by 50 means resolution of 0.02 degrees, which is less than the
-  // // encoder resolution of 0.07 degrees
-  // buffer_append_int16(msg.buf,(int16_t)(pos*POS_MULTIPLIER),&index);
-  //
-  // /*
-	// WACKO fix, doesn't work without the wait
-	// */
-	// long time = micros();
-	// while(time - micros() < 1) {}
-  //
-	// CANtx.write(msg);
-}
 
 /*************** PUBLIC METHODS ****************/
 
@@ -140,8 +88,8 @@ void DualVESC::_send_position_pid_constants(float kp, float ki, float kd, float 
  */
  // TODO add serial object to constructor
 DualVESC::DualVESC(int vesc_encoder_reading_period,
-  HardwareSerial* serial_port) : pos_controller_A(0,0), pos_controller_B(0,0),
-                            vesc_uart_A(serial_port), vesc_uart_B(serial_port){
+  HardwareSerial* serial_port1,HardwareSerial* serial_port2) : pos_controller_A(0,0), pos_controller_B(0,0),
+                            vesc_uart_A(serial_port1), vesc_uart_B(serial_port2){
 
   // the first time_delta will be large and will give small deg per sec which is ok
   time_last_angle_read = 0;
@@ -242,6 +190,16 @@ float DualVESC::read_A() {
 }
 
 /**
+   * Returns the last read normalized motor position in degrees. Note
+   * that the motor position read is not the commanded position, but
+   * the actual, last-read motor position
+   * @return motor position
+   */
+float DualVESC::read_B() {
+  return vesc_to_normalized_angle(vesc_angle_B, encoder_offset_B, encoder_direction_B);
+}
+
+/**
  * Updates the VESC objects knowledge of the motor angle
  * Takes between 4 and 5 us when using the while loop-based normalize
  * angle function
@@ -293,6 +251,7 @@ void DualVESC::update_angle_B(float angle) {
 /**
  * Prints VESC object state
  */
+// TODO debug both controllers
 void DualVESC::print_debug() {
 	if(last_print_debug > 100) {
 		last_print_debug = 0;
@@ -327,6 +286,7 @@ void DualVESC::pid_update_normalized(float set_point) {
 /**
  * Compute PID output and send to VESC. Uses last given values
  */
+// TODO complete decoupled PID
 void DualVESC::pid_update(float set_point) {
   // error_theta = (theta1 + theta 2)/2
   float error_theta = utils_angle_difference(0,0);

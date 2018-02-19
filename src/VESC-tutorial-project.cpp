@@ -22,6 +22,7 @@
 #include "SerialVESC.h"
 #include "VescUart.h"
 #include "Config.h"
+#include "DualSerialVESC.h"
 
 /********* CONSTANTS *********/
 
@@ -57,8 +58,9 @@ elapsedMicros elapsed_1000HZ = 0;
 elapsedMicros elapsed_2000HZ = 0;
 
 // VESC motor objects
-VESC vesc1(VESC_ENCODER_PERIOD, &VESC1_SERIAL);
-VESC vesc2(VESC_ENCODER_PERIOD, &VESC2_SERIAL);
+// VESC vesc1(VESC_ENCODER_PERIOD, &VESC1_SERIAL);
+// VESC vesc2(VESC_ENCODER_PERIOD, &VESC2_SERIAL);
+DualVESC dual_vesc(VESC_ENCODER_PERIOD, &VESC2_SERIAL, &VESC2_SERIAL);
 
 // STATE MACHINE STATE VARIABLE
 enum controller_state_machine {
@@ -79,12 +81,13 @@ struct vesc_pos_gain_command vesc_pos_gain_target = {0.0, 0.0, 0.0};
 /**
  * Call this function in the main loop if you want to see the normalized motor angles
  */
+// TODO FIX for dual vesc
 void print_shit() {
   if(last_print_shit > 10) {
     last_print_shit -= 10;
 
     // Serial.println(loop_time);
-    Serial.println(vesc1.read());
+    // Serial.println(vesc1.read());
   }
 }
 
@@ -175,7 +178,6 @@ void transition_to_STAGING() {
   controller_state = STAGING;
 
   // Program specific resets
-  reset_impulse();
 }
 
 /**
@@ -248,37 +250,24 @@ int process_serial() {
 	return 0;
 }
 
+// TODO Change dual serial vesc to have method that exposes hardware serial
+// ports. that way we can loop through the serial ports the dual vesc class
+// uses without having to use this crappy code that manually checks each
+// hardware serial object
 int process_VESC_serial() {
 	int received = 0;
   while(VESC1_SERIAL.available()) {
 		uint8_t data = VESC1_SERIAL.read();
-		vesc1.packet_process_byte(data);
+		dual_vesc.packet_process_byte_A(data);
 		received = 1;
 	}
 
 	while(VESC2_SERIAL.available()) {
 		uint8_t data = VESC2_SERIAL.read();
-		vesc2.packet_process_byte(data);
+		dual_vesc.packet_process_byte_B(data);
 		received = 1;
 	}
 	return received;
-}
-
-/**
- * Handle any position messages from VESCs
- */
-void process_CAN_messages() {
-  // float last_read_angle;
-  // int transmitter_ID;
-  //
-  // // time to read angle over can is 9 us
-  // if(readAngleOverCAN(CANTransceiver, last_read_angle, transmitter_ID)) {
-  //   switch(transmitter_ID) {
-  //     case VESC1_CHANNEL_ID:
-  //       vesc1.update_angle(last_read_angle);
-  //       break;
-  //   }
-  // }
 }
 
 /**
@@ -299,11 +288,11 @@ int RUNNING_STATE() {
 	if(elapsed_2000HZ > UPDATE_2000HZ) {
 		elapsed_2000HZ = 0;
 
-		vesc1.set_pid_gains(0.02,0.001);
-		vesc1.pid_update(vesc_pos_gain_target.pos);
-
-		vesc2.set_pid_gains(-0.02, -0.001);
-		vesc2.pid_update(vesc_pos_gain_target.pos);
+		// vesc1.set_pid_gains(0.02,0.001);
+		// vesc1.pid_update(vesc_pos_gain_target.pos);
+		//
+		// vesc2.set_pid_gains(-0.02, -0.001);
+		// vesc2.pid_update(vesc_pos_gain_target.pos);
 
 
 		executed_code |= 1;
@@ -348,8 +337,8 @@ int RUNNING_STATE() {
 
 		// Serial.println(vesc1.read());
 		if(PRINT_DEBUG) {
-			// vesc1.print_debug();
-			vesc2.print_debug();
+			// TODO debug both pid controllers and motors etc etc
+			dual_vesc.print_debug();
 		}
 
 		// SERIAL POSITION
@@ -367,8 +356,7 @@ int RUNNING_STATE() {
  * ESTOP: Stops motor in emergency
  */
 void ESTOP_STATE() {
-  vesc1.write_current(0.0f);
-	vesc2.write_current(0.0f);
+  dual_vesc.write_current(0.0f, 0.0f);
 
 	// Pause for 100ms
 	long now = millis();
@@ -398,13 +386,9 @@ void setup() {
 
 
   // Initialize VESC controller objects
-  vesc1.attach(VESC1_OFFSET,
-               VESC1_DIRECTION,
-               MAX_CURRENT);
-
-	vesc2.attach(VESC2_OFFSET,
-						 	 VESC2_DIRECTION,
-						 	 MAX_CURRENT);
+  dual_vesc.attach(VESC1_OFFSET, VESC1_DIRECTION,
+								   VESC2_OFFSET, VESC2_DIRECTION,
+               		 MAX_CURRENT);
 
 	// Wait for shit to get set up
   delay(1000);
@@ -488,7 +472,9 @@ void encoder_printing() {
 	if(print_encoder_readings) {
 		Serial.print(millis());
 		Serial.print(" ");
-		Serial.println(vesc1.read());
+		Serial.print(dual_vesc.read_A());
+		Serial.print(" ");
+		Serial.println(dual_vesc.read_B());
 	}
 }
 
@@ -508,115 +494,4 @@ void update_pos_and_gain_target(float pos, float kp, float kd) {
 	vesc_pos_gain_target.pos = pos;
 	vesc_pos_gain_target.k_p = kp;
 	vesc_pos_gain_target.k_d = kd;
-}
-
-/**
- * Send a position and gain command to a VESC
- * @param vesc: VESC reference
- * @param comm: Position and gain struct command
- */
-void send_vesc_target(VESC &vesc, struct vesc_pos_gain_command &comm) {
-	vesc.write_pos_and_pid_gains(comm.k_p,
-															 0.0,
-															 comm.k_d,
-															 comm.pos);
-}
-
-// Call this function in RUNNING_STATE to move the motor in a sinusoid
-void sinusoid() {
-  float seconds = (float)(millis()%1000000) / 1000.0;
-  float freq = 0.25; // actual freq, not angular freq
-  // Must use sinf and not sin??
-  float motor_angle = sinf(seconds*2*PI*freq) * 180.0;
-
-  // This particular set of arguments sets Kd to 0.05, Ki to 0, Kd to 0.0005, and target position to 0 degrees
-  vesc1.write_pos_and_pid_gains(0.05, 0, 0.0005, motor_angle);
-}
-
-static bool impulse_started = false;
-static bool impulse_finished = false;
-static bool impulsed_printed_finish = false;
-
-void impulse_print_position() {
-  Serial.println(vesc1.read());
-}
-
-void reset_impulse() {
-  impulse_finished = false;
-  impulsed_printed_finish = false;
-  impulse_started = false;
-}
-
-void impulse() {
-  // Print IMPULSE-STARTING when the function is first called
-  if(!impulse_started) {
-    Serial.println("IMPULSE-STARTING");
-    impulse_started = true;
-  }
-
-  // Print IMPULSE-DONE after the program is finished
-  if(impulse_finished && !impulsed_printed_finish) {
-    Serial.println("IMPULSE-DONE");
-    impulsed_printed_finish = true;
-  }
-
-  // Send motor position command based off which time segment we're in
-  static long time_running = 0;
-  time_running = millis() - running_timestamp;
-
-  // Send to 180 deg and wait for 500ms for the motor to get there)
-  if (time_running < 500) {
-    vesc1.write(180.0f);
-    return;
-  }
-
-  // Send zero current after the impulse is done
-  if(time_running > 2000) {
-    impulse_finished = true;
-    LED_ON;
-    transition_to_ESTOP();
-    return;
-  }
-
-  // If execution reaches, here it means we're in the actual impulse stage
-  // Print the motor position
-
-  // CAITLIN: using this function makes it not work
-  // impulse_print_position();
-  // CAITLIN: Printing directly works
-  // Does not work when Serial.print
-  Serial.println(vesc1.read());
-
-  // Set 180.0 deg position and Wait 1 second to measure resting instability
-  if (time_running < 1000) {
-    LED_OFF;
-    vesc1.write(180.0f);
-    return;
-  }
-
-  // Send to 90 deg and wait for 500ms
-  if(time_running >= 1000 && time_running < 1500) {
-    LED_ON;
-    // Serial.println("");
-    vesc1.write(90.0f);
-    return;
-  }
-
-  /***** CAITLIN THE BELOW ISNT WORKING ******/
-  // THINGS TRIED
-  // Filling out 8 byte can message buffer instead of filling out first 4 bytes
-  // Printing out CAN message data in binary and making sure its not corrupted
-  // Can't make the CAN_messate_t variable global or static :(
-
-  // Send back to 0 deg and wait for 500 ms
-  if(time_running >= 1500 && time_running < 2000) {
-    // Serial.println("");
-
-    // Without the above println, the LED_OFF which uses digitalWrite DOES WORK
-    LED_OFF;
-
-    // Without the above println, the vesc1.write DOES NOT WORK
-    vesc1.write(180.0f);
-    return;
-  }
 }

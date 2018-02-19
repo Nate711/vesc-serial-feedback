@@ -2,11 +2,9 @@
 #define VESC_TUTORIAL_PROJECT_H
 
 #include "SerialVESC.h"
+#include "DualSerialVESC.h"
 
 // App specific functions
-void reset_impulse();
-void impulse_print_position();
-void impulse();
 void sinusoid();
 
 void update_pos_and_gain_target(float pos, float kp, float kd);

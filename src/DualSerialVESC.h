@@ -15,8 +15,8 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
     */
 
-#ifndef SERIAL_VESC_H
-#define SERIAL_VESC_H
+#ifndef DUAL_SERIAL_VESC_H
+#define DUAL_SERIAL_VESC_H
 
 #include <Arduino.h>
 #include "AngularPDController.h"
@@ -65,6 +65,8 @@ private:
   // keep track of elapsed milliseconds since last prints
   elapsedMillis last_print_debug=0;
 	elapsedMillis print_w=0;
+
+
 
 	/**
 	 * Converts an angle in the vesc encoder reference frame to a normalized angle
@@ -119,7 +121,7 @@ public:
 	 * Constructor. Sets the serial port object and calls constructor
 	 * @param serial_port : reference to SERIAL object
 	 */
-  DualVESC(int encoder_period, HardwareSerial* serial_port);
+  DualVESC(int encoder_period, HardwareSerial* serial_port1, HardwareSerial* serial_port2);
 
 	/**
 	 * Processes the given byte from the serial stream
@@ -162,6 +164,14 @@ public:
 	 * @return motor position
 	 */
 	float read_A();
+
+	/**
+	 * Returns the last read normalized motor position in degrees. Note
+	 * that the motor position read is not the commanded position, but
+	 * the actual, last-read motor position
+	 * @return motor position
+	 */
+	float read_B();
 
 	/**
    * Sets up the vesc object to talk over this CAN ID channel
