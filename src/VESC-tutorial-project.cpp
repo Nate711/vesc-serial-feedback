@@ -60,7 +60,7 @@ elapsedMicros elapsed_2000HZ = 0;
 // VESC motor objects
 // VESC vesc1(VESC_ENCODER_PERIOD, &VESC1_SERIAL);
 // VESC vesc2(VESC_ENCODER_PERIOD, &VESC2_SERIAL);
-DualVESC dual_vesc(VESC_ENCODER_PERIOD, &VESC2_SERIAL, &VESC2_SERIAL);
+DualVESC dual_vesc(VESC_ENCODER_PERIOD, &VESC1_SERIAL, &VESC2_SERIAL);
 
 // STATE MACHINE STATE VARIABLE
 enum controller_state_machine {
@@ -288,12 +288,14 @@ int RUNNING_STATE() {
 	if(elapsed_2000HZ > UPDATE_2000HZ) {
 		elapsed_2000HZ = 0;
 
+		// dual_vesc.write_current(0.5,0.5);
+		// dual_vesc.update_pid(90,90);
+
 		// vesc1.set_pid_gains(0.02,0.001);
 		// vesc1.pid_update(vesc_pos_gain_target.pos);
 		//
 		// vesc2.set_pid_gains(-0.02, -0.001);
 		// vesc2.pid_update(vesc_pos_gain_target.pos);
-
 
 		executed_code |= 1;
 	}
@@ -325,7 +327,8 @@ int RUNNING_STATE() {
 
 		// Finally this works
 		// Serial.println(vesc1.read());
-		// encoder_printing();
+		dual_vesc.pid_update(90,90);
+		encoder_printing();
 		// encoder_printing();
 		// send_vesc_target(vesc1, vesc_pos_gain_target);
 

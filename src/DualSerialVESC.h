@@ -207,7 +207,7 @@ public:
 	 * Same as above except uses absolute angle
 	 * @param set_point [description]
 	 */
-  void pid_update(float set_point);
+  void pid_update(float theta_sp, float gamma_sp);
 
 	/**
 	 * Prints VESC object state
