@@ -38,7 +38,8 @@ float DualVESC::vesc_to_normalized_angle(float raw_angle,
     normalized = utils_angle_difference(0, normalized);
   }
   normalized += encoder_offset; // add encoder offset
-  utils_norm_angle(normalized); // normalize to [0 360)
+
+  utils_norm_angle_center(normalized); // normalize to [-180 180)
 
   return normalized;
 }
@@ -54,12 +55,13 @@ float DualVESC::normalized_to_vesc_angle(float normalized_angle,
   float raw_angle = normalized_angle;
 
   raw_angle -= encoder_offset; // subtract offset
+
   // reverse if opposite direction
   if(encoder_direction == -1) {
     raw_angle = utils_angle_difference(0, raw_angle);
   }
-  // normalize angle to 0 to 360
-  utils_norm_angle(raw_angle);
+  // normalize angle to -180 to 180
+  utils_norm_angle_center(raw_angle);
 
   return raw_angle;
 }
@@ -90,8 +92,8 @@ void DualVESC::_send_current(float current_A, float current_B) {
 DualVESC::DualVESC(int vesc_encoder_reading_period,
                    HardwareSerial* serial_port1,
                    HardwareSerial* serial_port2) :
-                   pos_controller_A(0,0),
-                   pos_controller_B(0,0),
+                   pos_controller_theta(0,0),
+                   pos_controller_gamma(0,0),
                    vesc_uart_A(serial_port1),
                    vesc_uart_B(serial_port2){
 
@@ -159,8 +161,7 @@ void DualVESC::attach(float _encoder_offset_A, int _encoder_direction_A,
 * @param deg normalized target angle in degrees
 */
 void DualVESC::write(float theta, float gamma) {
-  // TODO Write
-  // _send_position(normalized_to_vesc_angle(deg));
+  pid_update(theta,gamma);
 }
 
 /**
@@ -202,8 +203,8 @@ float DualVESC::read_B() {
 void DualVESC::update_angle_A(float angle) {
   float corrected = angle;
 
-  // 26 us without this line, 31 with this line = 5 us time
-  utils_norm_angle(corrected);
+  // convert to -180 180 for safety
+  utils_norm_angle_center(corrected);
 
   // Compute velocity in deg per s
   // This computation is subject to noise!
@@ -212,7 +213,9 @@ void DualVESC::update_angle_A(float angle) {
 
   // Hardcoded sampling rate of 1000hz, make sure to change if changing
   // the send frequency of the VECS
-  vesc_vel_A = VESC_ENCODER_PERIOD * utils_angle_difference(corrected,vesc_angle_A);
+
+  // TEST THIS SOLUTION TO THE BAD BUG
+  vesc_vel_A = (MICROSPERSEC / VESC_ENCODER_PERIOD) * utils_angle_difference(corrected,vesc_angle_A);
   // add lowpass filter didn't help much or made the vibrations worse!
   // Tested 0.5 and 0.8 * temp
 
@@ -231,12 +234,12 @@ void DualVESC::update_angle_A(float angle) {
 void DualVESC::update_angle_B(float angle) {
   float corrected = angle;
 
-  utils_norm_angle(corrected);
+  utils_norm_angle_center(corrected);
 
   // Compute velocity in deg per s
   // Hardcoded sampling rate of 1000hz, make sure to change if changing
   // the send frequency of the VECS
-  vesc_vel_B = VESC_ENCODER_PERIOD * utils_angle_difference(corrected,vesc_angle_B);
+  vesc_vel_B = (MICROSPERSEC / VESC_ENCODER_PERIOD) * utils_angle_difference(corrected,vesc_angle_B);
   vesc_angle_B = corrected;
 }
 
@@ -249,16 +252,16 @@ void DualVESC::print_debug() {
     last_print_debug = 0;
 
     Serial.print("O: ");
-    Serial.print(pos_controller_A.get_command());
+    Serial.print(pos_controller_theta.get_command());
     Serial.print(" \tEr: ");
-    Serial.print(pos_controller_A.get_error());
+    Serial.print(pos_controller_theta.get_error());
     Serial.print(" \tEr.w:  ");
-    Serial.print(pos_controller_A.get_error_deriv());
+    Serial.print(pos_controller_theta.get_error_deriv());
     Serial.print(" \tw: ");
     Serial.print(vesc_vel_A);
     Serial.print(" \tKp: ");
     float pterm,dterm;
-    pos_controller_A.get_error_terms(pterm, dterm);
+    pos_controller_theta.get_error_terms(pterm, dterm);
     Serial.print(pterm);
     Serial.print(" \tKd: ");
     Serial.println(dterm);
@@ -315,11 +318,14 @@ void DualVESC::pid_update(float theta_setpoint, float gamma_setpoint) {
   float error_theta = utils_angle_difference(theta(alpha,beta), theta_setpoint);
   float error_gamma = utils_angle_difference(gamma(alpha,beta), gamma_setpoint);
 
-  // TODO theta dot and gamma dot
   float theta_current = max_current *
-  pos_controller_A.compute_command(error_theta, VESC_ENCODER_PERIOD);
+         pos_controller_theta.compute_command(error_theta, VESC_ENCODER_PERIOD);
   float gamma_current = max_current *
-  pos_controller_B.compute_command(error_gamma, VESC_ENCODER_PERIOD);
+         pos_controller_gamma.compute_command(error_gamma, VESC_ENCODER_PERIOD);
+
+  // TODO frame all motor angle conversions as coordinate system changes
+  // TODO multiply currents by motor direction so pid based on normalized angles
+  // actually work!
 
   // motor torque = J.T * F
   // J = [0.5, 0.5; -0.5, 0.5]
@@ -341,6 +347,6 @@ void DualVESC::pid_update(float theta_setpoint, float gamma_setpoint) {
 * @param kD derivative gain
 */
 void DualVESC::set_pid_gains(float kP, float kD) {
-  pos_controller_A.set_gains(kP, kD);
-  pos_controller_B.set_gains(kP, kD);
+  pos_controller_theta.set_gains(kP, kD);
+  pos_controller_gamma.set_gains(kP, kD);
 }

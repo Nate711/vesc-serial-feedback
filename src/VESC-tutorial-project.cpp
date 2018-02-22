@@ -295,7 +295,8 @@ int RUNNING_STATE() {
 
 		// vesc1.set_pid_gains(0.02,0.001);
 		// vesc1.pid_update(vesc_pos_gain_target.pos);
-		//
+
+		// TODO switch vesc 2 wires so you don't have negative PID values
 		// vesc2.set_pid_gains(-0.02, -0.001);
 		// vesc2.pid_update(vesc_pos_gain_target.pos);
 
@@ -305,21 +306,12 @@ int RUNNING_STATE() {
   if(elapsed_1000HZ > UPDATE_1000HZ) {
     elapsed_1000HZ = 0;
 
-		// vesc1.set_pid_gains(0.02,0.001);
-		// vesc1.pid_update(180.0);
-
-    // encoder_printing();
-    // VESC-side position PID control
-		// send_vesc_target(vesc1, vesc_pos_gain_target);
-
 		// vesc1.set_pid_gains(vesc_pos_gain_target.k_p,vesc_pos_gain_target.k_d);
-		// vesc1.pid_update(vesc_pos_gain_target.pos);
 
 		// Hard-coded values
 		// P=0.05 and D= 0.001 doesn't work with 20A but marginally with 15A
 		// vesc1.set_pid_gains(0.05,0.001);
 		// vesc1.pid_update(180.0);
-		// Serial.println(vesc1.read());
 
 		executed_code |= 1;
   }
@@ -327,12 +319,7 @@ int RUNNING_STATE() {
 	if(elapsed_500HZ > UPDATE_500HZ) {
 		elapsed_500HZ = 0;
 
-		// Finally this works
-		// Serial.println(vesc1.read());
-
 		encoder_printing();
-		// encoder_printing();
-		// send_vesc_target(vesc1, vesc_pos_gain_target);
 
 		executed_code |= 1;
 	}
@@ -340,17 +327,11 @@ int RUNNING_STATE() {
 	if(elapsed_100HZ > UPDATE_100HZ) {
 		elapsed_100HZ = 0;
 
-		// Serial.println(vesc1.read());
 		if(PRINT_DEBUG) {
 			// TODO debug both pid controllers and motors etc etc
 			dual_vesc.print_debug();
 		}
 
-		// SERIAL POSITION
-		// float pos = vesc_pos_gain_target.pos;
-		// vesc1.write(pos);
-		// impulse();
-    // send_vesc_target(vesc1, vesc_pos_gain_target);
 
 		executed_code |= 1;
 	}

@@ -22,6 +22,8 @@
 #include "AngularPDController.h"
 #include "VescUart.h"
 
+#define MICROSPERSEC 1000000
+
 
 class DualVESC {
 private:
@@ -53,8 +55,8 @@ private:
 	// TODO Serial object to use for comms
 
   // PID object to control angular position
-  AngularPDController pos_controller_A;
-	AngularPDController pos_controller_B;
+  AngularPDController pos_controller_theta;
+	AngularPDController pos_controller_gamma;
 
 	// Serial object
 	VESCUart vesc_uart_A;
@@ -147,7 +149,7 @@ public:
 	 * @param current desired current in amps
 	 */
 	void write_current(float current_A, float current_B);
-	
+
 	/**
 	 * Returns the last read normalized motor position in degrees. Note
 	 * that the motor position read is not the commanded position, but
