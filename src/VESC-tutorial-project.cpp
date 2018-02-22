@@ -288,6 +288,8 @@ int RUNNING_STATE() {
 	if(elapsed_2000HZ > UPDATE_2000HZ) {
 		elapsed_2000HZ = 0;
 
+		dual_vesc.set_pid_gains(0.02, 0.001);
+		dual_vesc.pid_update(90,90);
 		// dual_vesc.write_current(0.5,0.5);
 		// dual_vesc.update_pid(90,90);
 
@@ -327,7 +329,7 @@ int RUNNING_STATE() {
 
 		// Finally this works
 		// Serial.println(vesc1.read());
-		dual_vesc.pid_update(90,90);
+
 		encoder_printing();
 		// encoder_printing();
 		// send_vesc_target(vesc1, vesc_pos_gain_target);

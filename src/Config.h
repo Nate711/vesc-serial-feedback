@@ -16,7 +16,7 @@
 
 // 320k, 250k, 200k, 160k, 125k, 100k all work
 // 500k does not work, causes motor spasms
-// 1000k does NOT work, no data received
+// >= 1000k does NOT work, no data received
 // DELAYS FIXED: eliminated start byte type 3 (payload length message is
 // 2 bytes, aka more than 256 bytes but thats way to fricken long
 #define VESC_BAUDRATE 320000
@@ -31,12 +31,12 @@
 #define MAX_CURRENT 20.0 // 30 amps seems the max
 
 ////// VESC 1 configuration //////
-#define VESC1_OFFSET -43 //-108
+#define VESC1_OFFSET -43 // updated 2/22 for robity v2
 #define VESC1_DIRECTION -1
 #define VESC1_SERIAL Serial4
 
 ////// VESC 2 configuration //////
-#define VESC2_OFFSET -254
+#define VESC2_OFFSET -254 // updated 2/22 for robity v2
 #define VESC2_DIRECTION 1
 #define VESC2_SERIAL Serial1
 

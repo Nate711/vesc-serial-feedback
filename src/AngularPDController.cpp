@@ -2,6 +2,8 @@
 #include <Arduino.h>
 #include "utils.h"
 
+#define MICROSPERSEC 1000000
+
 /**
  * Constructor for angular proportional derivative controller
  * @param kp [description]
@@ -18,45 +20,25 @@ AngularPDController::AngularPDController(float kp, float kd) {
   last_dterm = 0.0;
 }
 
-/*
- * Need to change dt to microseconds to speed up calculations
- */
-
 /**
- * Compute the PID output given a new error value and dt
+ * Compute the PID output given a new error value and dt.
+ * Assumption: requires positive torque to increase encoder value!
  * @param  error     angle error
  * @param  dt_micros number of micros since last measurement
  * @return           PID output, saturated between -1, 1
  */
-float AngularPDController::compute_command(const float& error, int dt_micros) {
-  static int MICROSPERSEC = 1000000;
-
-  // Compute p term
-  last_pterm = - pd_constants.Kp*error;
-
+float AngularPDController::compute_command(float error, int dt_micros) {
   // Compute angular velocity of error
   if(first_loop) {
     last_error_deriv = 0.0;
     first_loop = false;
   } else {
-    last_error_deriv = MICROSPERSEC*utils_angle_difference(error, last_angular_error) /
-        dt_micros;
+    last_error_deriv = MICROSPERSEC *
+                        utils_angle_difference(error, last_angular_error) /
+                          dt_micros;
   }
-  last_angular_error = error;
 
-  // Compute d term
-  // TODO: Constain the D term
-  last_dterm = - pd_constants.Kd*last_error_deriv;
-
-  // Compute final command
-  last_command = last_pterm + last_dterm;
-
-  // Constrain the output between -1.0 and 1.0
-  // TODO: Check if the arduino constrain is still not working
-  last_command = last_command > 1.0 ? 1.0 : last_command;
-  last_command = last_command < -1.0 ? -1.0 : last_command;
-
-  return last_command;
+  return compute_command(error, last_error_deriv);
 }
 
 /**
@@ -65,26 +47,28 @@ float AngularPDController::compute_command(const float& error, int dt_micros) {
  * @param  dt_micros number of micros since last measurement
  * @return           PID output, saturated between -1, 1
  */
-float AngularPDController::compute_command(const float& error, float ang_vel) {
-  static int MICROSPERSEC = 1000000;
-
+float AngularPDController::compute_command(float error, float ang_vel) {
   // Compute p term
-  last_pterm = - pd_constants.Kp*error;
-
-  last_error_deriv = ang_vel;
-  last_angular_error = error;
+  float pterm = - pd_constants.Kp * error;
 
   // Compute d term
-  // TODO: Constain the D term
-  last_dterm = - pd_constants.Kd*last_error_deriv;
+  // TODO: Constain / filter D term
+  float dterm = - pd_constants.Kd * ang_vel;
 
   // Compute final command
-  last_command = last_pterm + last_dterm;
+  float command = pterm + dterm;
 
   // Constrain the output between -1.0 and 1.0
   // TODO: Check if the arduino constrain is still not working
-  last_command = last_command > 1.0 ? 1.0 : last_command;
-  last_command = last_command < -1.0 ? -1.0 : last_command;
+  command = command > 1.0 ? 1.0 : command;
+  command = command < -1.0 ? -1.0 : command;
+
+  // Update memory of last command and components
+  last_command = command;
+  last_pterm = pterm;
+  last_dterm = dterm;
+  last_error_deriv = ang_vel;
+  last_angular_error = error;
 
   return last_command;
 }

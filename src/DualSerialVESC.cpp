@@ -172,17 +172,6 @@ void DualVESC::write_current(float current_A, float current_B) {
 }
 
 /**
-* Sends CAN message to update position PID gains and position
-* @param kp P term gain
-* @param ki I term gain
-* @param kd D term gain
-* @param pos : normalized target position
-*/
-void DualVESC::write_pos_and_pid_gains(float kp, float ki, float kd, float pos) {
-  // _send_position_pid_constants(kp, ki, kd, normalized_to_vesc_angle(pos));
-}
-
-/**
 * Returns the last read normalized motor position in degrees. Note
 * that the motor position read is not the commanded position, but
 * the actual, last-read motor position
@@ -294,7 +283,7 @@ void DualVESC::pid_update_normalized(float set_point) {
 */
 float theta(float alpha, float beta) {
   // Takes care of edge case where links are above the horizontal
-  // by limiting alpha and beta to [0 180] degs
+  // by limiting alpha and beta to [-180 180] degs
   alpha = utils_angle_difference(alpha, 0.0f);
   beta = utils_angle_difference(beta, 0.0f);
 
@@ -303,7 +292,7 @@ float theta(float alpha, float beta) {
 
 float gamma(float alpha, float beta) {
   // Takes care of edge case where links are above the horizontal
-  // by limiting alpha and beta to [0 180] degs
+  // by limiting alpha and beta to [-180 180] degs
   alpha = utils_angle_difference(alpha, 0.0f);
   beta = utils_angle_difference(beta, 0.0f);
   return (beta - alpha) * 0.5;
@@ -332,7 +321,8 @@ void DualVESC::pid_update(float theta_setpoint, float gamma_setpoint) {
   float gamma_current = max_current *
   pos_controller_B.compute_command(error_gamma, VESC_ENCODER_PERIOD);
 
-  // motor torque = Jacobian.T * F
+  // motor torque = J.T * F
+  // J = [0.5, 0.5; -0.5, 0.5]
   float current_A = 0.5 * theta_current - 0.5 * gamma_current;
   float current_B = 0.5 * theta_current + 0.5 * gamma_current;
 
@@ -341,6 +331,7 @@ void DualVESC::pid_update(float theta_setpoint, float gamma_setpoint) {
   Serial.println(error_gamma);
 
   // TODO current_B should be multiplied by -1
+  // TODO, figure out sign of current and encoder shit
   _send_current(current_A, current_B);
 }
 

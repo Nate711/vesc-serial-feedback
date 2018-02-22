@@ -147,16 +147,7 @@ public:
 	 * @param current desired current in amps
 	 */
 	void write_current(float current_A, float current_B);
-	/**
-	 * Sends CAN message to update position PID gains and position
-	 * @param kp P term gain
-	 * @param ki I term gain
-	 * @param kd D term gain
-	 * @param pos : normalized target position
-	 */
-	void write_pos_and_pid_gains(float kp, float ki,
-		float kd,float pos);
-
+	
 	/**
 	 * Returns the last read normalized motor position in degrees. Note
 	 * that the motor position read is not the commanded position, but
