@@ -60,8 +60,8 @@ float DualVESC::normalized_to_vesc_angle(float normalized_angle,
   if(encoder_direction == -1) {
     raw_angle = utils_angle_difference(0, raw_angle);
   }
-  // normalize angle to -180 to 180
-  utils_norm_angle_center(raw_angle);
+  // normalize angle to 0 to 360
+  utils_norm_angle(raw_angle);
 
   return raw_angle;
 }
@@ -203,21 +203,13 @@ float DualVESC::read_B() {
 void DualVESC::update_angle_A(float angle) {
   float corrected = angle;
 
-  // convert to -180 180 for safety
-  utils_norm_angle_center(corrected);
+  // convert to 0 360 for safety
+  utils_norm_angle(corrected);
 
-  // Compute velocity in deg per s
-  // This computation is subject to noise!
-  // 37-38 us loop time
-  // this line takes 6-8 us OUTDATED 12-21
-
-  // Hardcoded sampling rate of 1000hz, make sure to change if changing
-  // the send frequency of the VECS
-
-  // TEST THIS SOLUTION TO THE BAD BUG
+  // THIS IS AN UNTESTED FIX to the velocity calculation bug
   vesc_vel_A = (MICROSPERSEC / VESC_ENCODER_PERIOD) * utils_angle_difference(corrected,vesc_angle_A);
-  // add lowpass filter didn't help much or made the vibrations worse!
-  // Tested 0.5 and 0.8 * temp
+
+  // NOTE: adding lowpass of A=0.5 or 0.8 made vibrations worse (or no diff)!
 
   // Update angle state
   vesc_angle_A = corrected;
@@ -234,12 +226,12 @@ void DualVESC::update_angle_A(float angle) {
 void DualVESC::update_angle_B(float angle) {
   float corrected = angle;
 
-  utils_norm_angle_center(corrected);
+  utils_norm_angle(corrected);
 
-  // Compute velocity in deg per s
-  // Hardcoded sampling rate of 1000hz, make sure to change if changing
-  // the send frequency of the VECS
+  // THIS IS AN UNTESTED FIX to the velocity calculation bug
   vesc_vel_B = (MICROSPERSEC / VESC_ENCODER_PERIOD) * utils_angle_difference(corrected,vesc_angle_B);
+  // NOTE: adding lowpass of A=0.5 or 0.8 made vibrations worse (or no diff)!
+
   vesc_angle_B = corrected;
 }
 
@@ -287,8 +279,8 @@ void DualVESC::pid_update_normalized(float set_point) {
 float theta(float alpha, float beta) {
   // Takes care of edge case where links are above the horizontal
   // by limiting alpha and beta to [-180 180] degs
-  alpha = utils_angle_difference(alpha, 0.0f);
-  beta = utils_angle_difference(beta, 0.0f);
+  utils_norm_angle_center(alpha);
+  utils_norm_angle_center(beta);
 
   return (alpha + beta) * 0.5;
 }
@@ -296,8 +288,9 @@ float theta(float alpha, float beta) {
 float gamma(float alpha, float beta) {
   // Takes care of edge case where links are above the horizontal
   // by limiting alpha and beta to [-180 180] degs
-  alpha = utils_angle_difference(alpha, 0.0f);
-  beta = utils_angle_difference(beta, 0.0f);
+  utils_norm_angle_center(alpha);
+  utils_norm_angle_center(beta);
+  
   return (beta - alpha) * 0.5;
 }
 
