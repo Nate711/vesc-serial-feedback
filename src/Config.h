@@ -6,7 +6,7 @@
 
 // Set true if you want to print pid debugging information at 100hz
 #define PRINT_DEBUG false
-#define PRINT_CPU_USAGE true
+#define PRINT_CPU_USAGE false
 
 
 /********** MOTOR CONTROL CONFIGURATION ********/
@@ -28,7 +28,7 @@
 // reduces motor vibrations, probably because of better differentiation, but
 // running the Teensy-side PID at 2000hz doesn't improve PID performance very
 // much
-#define MAX_CURRENT 20.0 // 30 amps seems the max
+#define MAX_CURRENT 40.0 // 30 amps seems the max
 
 ////// VESC 1 configuration //////
 #define VESC1_OFFSET -43 // updated 2/22 for robity v2

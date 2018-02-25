@@ -39,7 +39,7 @@ float DualVESC::vesc_to_normalized_angle(float raw_angle,
   }
   normalized += encoder_offset; // add encoder offset
 
-  utils_norm_angle_center(normalized); // normalize to [-180 180)
+  utils_norm_angle(normalized); // normalize to [0 360)
 
   return normalized;
 }
@@ -271,6 +271,30 @@ void DualVESC::pid_update_normalized(float set_point) {
 }
 
 /**
+ * Calculates theta and gamma from alpha and beta.
+ * Edge case issues:
+ * 1) When alpha and beta are close together,
+ * gamma will fluctate between small values and large values as the links
+ * cross. Not sure if this is a problem or just a characteristic of how it must
+ * work.
+ *
+ * @param alpha angle of rightmost link to the horizontal, positive angles
+ * increase clockwise
+ * @param beta  angle of leftmost link to the horizontal, ^
+ * @param theta placeholder for theta result
+ * @param gamma placeholder for gamma result
+ */
+void theta_gamma(float alpha, float beta, float& theta, float& gamma) {
+  utils_norm_angle(alpha);
+  utils_norm_angle(beta);
+
+  theta = (alpha + beta) * 0.5;
+  utils_norm_angle_q1q2(theta);
+
+  gamma = (beta - alpha) * 0.5;
+  utils_norm_angle_q1q2(gamma);
+}
+/**
 * Given the two motor angles, return theta, the leg to foot angle
 * @param  alpha angle of link on the RIGHT (smaller angle usually)
 * @param  beta  angle of link on the LEFT (larger angle usually)
@@ -280,7 +304,7 @@ float theta(float alpha, float beta) {
   // Takes care of edge case where links are above the horizontal
   // by limiting alpha and beta to [-180 180] degs
   utils_norm_angle_center(alpha);
-  utils_norm_angle_center(beta);
+  utils_norm_angle(beta);
 
   return (alpha + beta) * 0.5;
 }
@@ -289,8 +313,8 @@ float gamma(float alpha, float beta) {
   // Takes care of edge case where links are above the horizontal
   // by limiting alpha and beta to [-180 180] degs
   utils_norm_angle_center(alpha);
-  utils_norm_angle_center(beta);
-  
+  utils_norm_angle(beta);
+
   return (beta - alpha) * 0.5;
 }
 
@@ -299,6 +323,7 @@ float gamma(float alpha, float beta) {
 */
 // TODO complete decoupled PID
 // TODO check directions of current going to motor!!
+elapsedMillis lastprint = 0;
 void DualVESC::pid_update(float theta_setpoint, float gamma_setpoint) {
   // alpha is angle of motor with link closest to right horizontal
   // beta is angle of motor with link further away
@@ -308,8 +333,12 @@ void DualVESC::pid_update(float theta_setpoint, float gamma_setpoint) {
   float alpha = vesc_to_normalized_angle(vesc_angle_A, encoder_offset_A, encoder_direction_A);
   float beta = vesc_to_normalized_angle(vesc_angle_B, encoder_offset_B, encoder_direction_B);
 
-  float error_theta = utils_angle_difference(theta(alpha,beta), theta_setpoint);
-  float error_gamma = utils_angle_difference(gamma(alpha,beta), gamma_setpoint);
+  // Calculate theta and gamms
+  float theta_deg, gamma_deg;
+  theta_gamma(alpha,beta,theta_deg,gamma_deg);
+
+  float error_theta = utils_angle_difference(theta_deg, theta_setpoint);
+  float error_gamma = utils_angle_difference(gamma_deg, gamma_setpoint);
 
   float theta_current = max_current *
          pos_controller_theta.compute_command(error_theta, VESC_ENCODER_PERIOD);
@@ -322,12 +351,29 @@ void DualVESC::pid_update(float theta_setpoint, float gamma_setpoint) {
 
   // motor torque = J.T * F
   // J = [0.5, 0.5; -0.5, 0.5]
-  float current_A = 0.5 * theta_current - 0.5 * gamma_current;
+  float current_A = - (0.5 * theta_current - 0.5 * gamma_current);
   float current_B = 0.5 * theta_current + 0.5 * gamma_current;
 
-  Serial.print(error_theta);
-  Serial.print('\t');
-  Serial.println(error_gamma);
+  if(lastprint > 500) {
+
+    Serial.print("AB: ");
+    Serial.print(alpha);
+    Serial.print('\t');
+    Serial.print(beta);
+    Serial.print("\tThY: ");
+    Serial.print(theta_deg);
+    Serial.print('\t');
+    Serial.print(gamma_deg);
+    Serial.print("\tThY Err: ");
+    Serial.print(error_theta);
+    Serial.print('\t');
+    Serial.print(error_gamma);
+    Serial.print("\t Iab: ");
+    Serial.print(current_A);
+    Serial.print('\t');
+    Serial.println(current_B);
+    lastprint = 0;
+  }
 
   // TODO current_B should be multiplied by -1
   // TODO, figure out sign of current and encoder shit
@@ -339,7 +385,7 @@ void DualVESC::pid_update(float theta_setpoint, float gamma_setpoint) {
 * @param kP proportional gain
 * @param kD derivative gain
 */
-void DualVESC::set_pid_gains(float kP, float kD) {
-  pos_controller_theta.set_gains(kP, kD);
-  pos_controller_gamma.set_gains(kP, kD);
+void DualVESC::set_pid_gains(float kP_the, float kD_the, float kP_gam, float kD_gam) {
+  pos_controller_theta.set_gains(kP_the, kD_the);
+  pos_controller_gamma.set_gains(kP_gam, kD_gam);
 }

@@ -93,6 +93,20 @@ void utils_norm_angle_center(float& angle1) {
   while (angle1 < -180.0) angle1 += 2.0 * 180.0;
 	while (angle1 > 180.0) angle1 -= 2.0 * 180.0;
 }
+
+
+/**
+ * Takes any angle between -inf and inf and returns the equivalent quadrant 1
+ * or quadrant 2 angle. Quadrant 3 or 4 angles become q1 or q2 angles.
+ * Ex: 190 -> 10, -10 -> 170, 350 -> 170
+ * @param  angle1 the angle to normalize
+ * @return        the angle between 0 and 180
+ */
+void utils_norm_angle_q1q2(float& angle1) {
+  while (angle1 < 0) angle1 += 180.0;
+	while (angle1 > 180.0) angle1 -= 180.0;
+}
+
 /**
  * Make sure that 0 <= angle < 360
  *

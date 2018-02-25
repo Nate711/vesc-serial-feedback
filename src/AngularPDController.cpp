@@ -33,9 +33,8 @@ float AngularPDController::compute_command(float error, int dt_micros) {
     last_error_deriv = 0.0;
     first_loop = false;
   } else {
-    last_error_deriv = MICROSPERSEC *
-                        utils_angle_difference(error, last_angular_error) /
-                          dt_micros;
+    last_error_deriv = (MICROSPERSEC / dt_micros) *
+                        utils_angle_difference(error, last_angular_error);
   }
 
   return compute_command(error, last_error_deriv);
