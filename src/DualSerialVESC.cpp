@@ -192,27 +192,44 @@ float DualVESC::read_B() {
   return vesc_to_normalized_angle(vesc_angle_B, encoder_offset_B, encoder_direction_B);
 }
 
-/**
-* Updates the VESC objects knowledge of the motor angle
-* Takes between 4 and 5 us when using the while loop-based normalize
-* angle function
-*
-* @param angle : measured position in vesc encoder frame. degrees
-* automatically normalizes the given angle (no > 180deg moves)
-*/
 void DualVESC::update_angle_A(float angle) {
   float corrected = angle;
-
-  // convert to 0 360 for safety
   utils_norm_angle(corrected);
 
-  // THIS IS AN UNTESTED FIX to the velocity calculation bug
-  vesc_vel_A = (MICROSPERSEC / VESC_ENCODER_PERIOD) * utils_angle_difference(corrected,vesc_angle_A);
+  if (corrected - prev_angle_A > 180) {
+    num_rotations_A--;
+  } else if (corrected - prev_angle_A < -180) {
+    num_rotations_A++;
+  }
 
-  // NOTE: adding lowpass of A=0.5 or 0.8 made vibrations worse (or no diff)!
+  vesc_vel_A = (1000000 / VESC_ENCODER_PERIOD) * utils_angle_difference(corrected,vesc_angle_A);
+  vesc_vel_B *= encoder_direction_A;
 
   // Update angle state
-  vesc_angle_A = corrected;
+  vesc_angle_A = (360.0f * num_rotations_A + corrected);
+  vesc_angle_A = encoder_direction_A * (vesc_angle_A - encoder_offset_A);
+
+  prev_angle_A = corrected;
+}
+
+void DualVESC::update_angle_B(float angle) {
+  float corrected = angle;
+  utils_norm_angle(corrected);
+
+  if (corrected - prev_angle_B > 180) {
+    num_rotations_B--;
+  } else if (corrected - prev_angle_B < -180) {
+    num_rotations_B++;
+  }
+
+  vesc_vel_B = (1000000/VESC_ENCODER_PERIOD) * utils_angle_difference(corrected,vesc_angle_B);
+  vesc_vel_B *= encoder_direction_B;
+
+  // Update angle state
+  vesc_angle_B = 360.0f * num_rotations_B + corrected;
+  vesc_angle_B = encoder_direction_B * (vesc_angle_B - encoder_offset_B);
+
+  prev_angle_B = corrected;
 }
 
 /**
@@ -223,17 +240,40 @@ void DualVESC::update_angle_A(float angle) {
 * @param angle : measured position in vesc encoder frame. degrees
 * automatically normalizes the given angle (no > 180deg moves)
 */
-void DualVESC::update_angle_B(float angle) {
-  float corrected = angle;
+// void DualVESC::update_angle_A(float angle) {
+//   float corrected = angle;
+//
+//   // convert to 0 360 for safety
+//   utils_norm_angle(corrected);
+//
+//   // THIS IS AN UNTESTED FIX to the velocity calculation bug
+//   vesc_vel_A = (MICROSPERSEC / VESC_ENCODER_PERIOD) * utils_angle_difference(corrected,vesc_angle_A);
+//
+//   // NOTE: adding lowpass of A=0.5 or 0.8 made vibrations worse (or no diff)!
+//
+//   // Update angle state
+//   vesc_angle_A = corrected;
+// }
 
-  utils_norm_angle(corrected);
-
-  // THIS IS AN UNTESTED FIX to the velocity calculation bug
-  vesc_vel_B = (MICROSPERSEC / VESC_ENCODER_PERIOD) * utils_angle_difference(corrected,vesc_angle_B);
-  // NOTE: adding lowpass of A=0.5 or 0.8 made vibrations worse (or no diff)!
-
-  vesc_angle_B = corrected;
-}
+/**
+* Updates the VESC objects knowledge of the motor angle
+* Takes between 4 and 5 us when using the while loop-based normalize
+* angle function
+*
+* @param angle : measured position in vesc encoder frame. degrees
+* automatically normalizes the given angle (no > 180deg moves)
+*/
+// void DualVESC::update_angle_B(float angle) {
+//   float corrected = angle;
+//
+//   utils_norm_angle(corrected);
+//
+//   // THIS IS AN UNTESTED FIX to the velocity calculation bug
+//   vesc_vel_B = (MICROSPERSEC / VESC_ENCODER_PERIOD) * utils_angle_difference(corrected,vesc_angle_B);
+//   // NOTE: adding lowpass of A=0.5 or 0.8 made vibrations worse (or no diff)!
+//
+//   vesc_angle_B = corrected;
+// }
 
 /**
 * Prints VESC object state
@@ -298,21 +338,30 @@ void theta_gamma(float alpha, float beta, float& theta, float& gamma) {
 * @return       angle between horizontal and line from hip to foot
 */
 float theta(float alpha, float beta) {
-  // Takes care of edge case where links are above the horizontal
-  // by limiting alpha and beta to [-180 180] degs
-  utils_norm_angle_center(alpha);
-  utils_norm_angle(beta);
-
   return (alpha + beta) * 0.5;
 }
 
 float gamma(float alpha, float beta) {
-  // Takes care of edge case where links are above the horizontal
-  // by limiting alpha and beta to [-180 180] degs
-  utils_norm_angle_center(alpha);
-  utils_norm_angle(beta);
-
   return (beta - alpha) * 0.5;
+}
+
+elapsedMillis lastprint_A = 0;
+void DualVESC::update_A(float alpha_setpoint) {
+  float alpha = vesc_angle_A;
+  float alpha_error = alpha - alpha_setpoint;
+
+  // TODO fix encoder direction A multiplication hack
+  float alpha_current = encoder_direction_A * max_current *
+        pos_controller_theta.compute_command(alpha_error, VESC_ENCODER_PERIOD);
+  _send_current(alpha_current,0);
+
+  if(lastprint_A > 500) {
+    Serial.print("A: ");
+    Serial.print(alpha);
+    Serial.print("\tI: ");
+    Serial.println(alpha_current);
+    lastprint_A = 0;
+  }
 }
 
 /**
@@ -324,20 +373,19 @@ elapsedMillis lastprint = 0;
 void DualVESC::pid_update(float theta_setpoint, float gamma_setpoint) {
   // alpha is angle of motor with link closest to right horizontal
   // beta is angle of motor with link further away
+  // vesc_angle_A is alpha, vesc_angle_B is beta
   // beta should be greater than alpha with direct drive
   //   beta  /\ alpha
   //         \/
-  float alpha = vesc_to_normalized_angle(vesc_angle_A, encoder_offset_A, encoder_direction_A);
-  float beta = vesc_to_normalized_angle(vesc_angle_B, encoder_offset_B, encoder_direction_B);
 
   // Calculate theta and gamms
   float theta_deg, gamma_deg;
   // theta_gamma(alpha,beta,theta_deg,gamma_deg);
-  theta_deg = theta(alpha,beta);
-  gamma_deg = gamma(alpha,beta);
+  theta_deg = theta(vesc_angle_A,vesc_angle_B);
+  gamma_deg = gamma(vesc_angle_A,vesc_angle_B);
 
-  float error_theta = utils_angle_difference(theta_deg, theta_setpoint);
-  float error_gamma = utils_angle_difference(gamma_deg, gamma_setpoint);
+  float error_theta = theta_deg - theta_setpoint;
+  float error_gamma = gamma_deg - gamma_setpoint;
 
   float theta_current = max_current *
          pos_controller_theta.compute_command(error_theta, VESC_ENCODER_PERIOD);
@@ -350,15 +398,16 @@ void DualVESC::pid_update(float theta_setpoint, float gamma_setpoint) {
 
   // motor torque = J.T * F
   // J = [0.5, 0.5; -0.5, 0.5]
-  float current_A = 0.5 * theta_current - 0.5 * gamma_current;
-  float current_B = -(0.5 * theta_current + 0.5 * gamma_current);
+  float current_A = encoder_direction_A *
+                    (0.5 * theta_current - 0.5 * gamma_current);
+  float current_B = encoder_direction_B *
+                    (0.5 * theta_current + 0.5 * gamma_current);
 
   if(lastprint > 500) {
-
     Serial.print("AB: ");
-    Serial.print(alpha);
+    Serial.print(vesc_angle_A);
     Serial.print('\t');
-    Serial.print(beta);
+    Serial.print(vesc_angle_B);
     Serial.print("\tThY: ");
     Serial.print(theta_deg);
     Serial.print('\t');

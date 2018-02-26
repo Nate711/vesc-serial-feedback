@@ -52,6 +52,12 @@ private:
   float vesc_vel_A = 0;
 	float vesc_vel_B = 0;
 
+	float prev_angle_A = 0.0f;
+  int num_rotations_A = 0;
+
+	float prev_angle_B = 0.0f;
+  int num_rotations_B = 0;
+
 	// TODO Serial object to use for comms
 
   // PID object to control angular position
@@ -195,6 +201,12 @@ public:
 	 * @param set_point [description]
 	 */
 	void pid_update_normalized(float set_point);
+
+	/**
+	 * PID for just motor A
+	 * @param alpha_setpoint angle setpoint, -inf to inf
+	 */
+	void update_A(float alpha_setpoint);
 
 	/**
 	 * Same as above except uses absolute angle

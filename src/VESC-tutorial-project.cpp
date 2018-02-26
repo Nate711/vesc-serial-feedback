@@ -210,25 +210,21 @@ int process_serial() {
 
 			// If any of X or P or D was not received
 			// exit out because it was a bad message
-			if(x_index == -1 || x_end == -1 ||
-				 p_index == -1 || p_end == -1 ||
-			 	 d_index == -1 || d_end == -1) {
-				return 0;
-			} else {
+			// if(x_index == -1 || x_end == -1 ||
+			// 	 p_index == -1 || p_end == -1 ||
+			//  	 d_index == -1 || d_end == -1) {
+			// 	return 0;
+			// } else {
 				// TODO add code to check that toFloat returned a valid number
 				float x = x_string.toFloat();
 				float kp = kp_string.toFloat();
 				float kd = kd_string.toFloat();
 
-				// normalize commanded angle to 0-360
-				// TODO update this for multirotation code
-				utils_norm_angle(x);
-
 				update_pos_and_gain_target(x,kp,kd);
 				print_pos_gain_target();
 
 				return 1;
-			}
+			// }
 		}
 
 		// Send 'e' to start encoder readings
@@ -300,17 +296,11 @@ int RUNNING_STATE() {
 	if(elapsed_2000HZ > UPDATE_2000HZ) {
 		elapsed_2000HZ = 0;
 
-		dual_vesc.set_pid_gains(0.06, 0.0005, 0.01, 0.0005);
+		dual_vesc.set_pid_gains(0.01, 0.0005, 0.05, 0.0005);
+		// dual_vesc.set_pid_gains(0.06, 0.0005, 0.00, 0.0005);
+		// dual_vesc.set_pid_gains(0.00, 0.0005, 0.06, 0.001);
 		dual_vesc.pid_update(90,45);
-		// dual_vesc.write_current(0.5,0.5);
-		// dual_vesc.update_pid(90,90);
-
-		// vesc1.set_pid_gains(0.02,0.001);
-		// vesc1.pid_update(vesc_pos_gain_target.pos);
-
-		// TODO switch vesc 2 wires so you don't have negative PID values
-		// vesc2.set_pid_gains(-0.02, -0.001);
-		// vesc2.pid_update(vesc_pos_gain_target.pos);
+		// dual_vesc.update_A(vesc_pos_gain_target.pos);
 
 		executed_code |= 1;
 	}
