@@ -277,7 +277,7 @@ void DualVESC::pid_update_normalized(float set_point) {
  * gamma will fluctate between small values and large values as the links
  * cross. Not sure if this is a problem or just a characteristic of how it must
  * work.
- *
+ * TODO: test this code!
  * @param alpha angle of rightmost link to the horizontal, positive angles
  * increase clockwise
  * @param beta  angle of leftmost link to the horizontal, ^
@@ -285,9 +285,6 @@ void DualVESC::pid_update_normalized(float set_point) {
  * @param gamma placeholder for gamma result
  */
 void theta_gamma(float alpha, float beta, float& theta, float& gamma) {
-  utils_norm_angle(alpha);
-  utils_norm_angle(beta);
-
   theta = (alpha + beta) * 0.5;
   utils_norm_angle_q1q2(theta);
 
@@ -335,7 +332,9 @@ void DualVESC::pid_update(float theta_setpoint, float gamma_setpoint) {
 
   // Calculate theta and gamms
   float theta_deg, gamma_deg;
-  theta_gamma(alpha,beta,theta_deg,gamma_deg);
+  // theta_gamma(alpha,beta,theta_deg,gamma_deg);
+  theta_deg = theta(alpha,beta);
+  gamma_deg = gamma(alpha,beta);
 
   float error_theta = utils_angle_difference(theta_deg, theta_setpoint);
   float error_gamma = utils_angle_difference(gamma_deg, gamma_setpoint);
@@ -351,8 +350,8 @@ void DualVESC::pid_update(float theta_setpoint, float gamma_setpoint) {
 
   // motor torque = J.T * F
   // J = [0.5, 0.5; -0.5, 0.5]
-  float current_A = - (0.5 * theta_current - 0.5 * gamma_current);
-  float current_B = 0.5 * theta_current + 0.5 * gamma_current;
+  float current_A = 0.5 * theta_current - 0.5 * gamma_current;
+  float current_B = -(0.5 * theta_current + 0.5 * gamma_current);
 
   if(lastprint > 500) {
 

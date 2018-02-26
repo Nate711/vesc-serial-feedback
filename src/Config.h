@@ -28,16 +28,16 @@
 // reduces motor vibrations, probably because of better differentiation, but
 // running the Teensy-side PID at 2000hz doesn't improve PID performance very
 // much
-#define MAX_CURRENT 40.0 // 30 amps seems the max
+#define MAX_CURRENT 20.0 // 30 amps seems the max
 
 ////// VESC 1 configuration //////
-#define VESC1_OFFSET -43 // updated 2/22 for robity v2
-#define VESC1_DIRECTION -1
+#define VESC1_OFFSET 43 // updated 2/22 for robity v2
+#define VESC1_DIRECTION 1
 #define VESC1_SERIAL Serial4
 
 ////// VESC 2 configuration //////
-#define VESC2_OFFSET -254 // updated 2/22 for robity v2
-#define VESC2_DIRECTION 1
+#define VESC2_OFFSET 47 // updated 2/22 for robity v2
+#define VESC2_DIRECTION -1
 #define VESC2_SERIAL Serial1
 
 
