@@ -34,6 +34,9 @@ const int UPDATE_1000HZ = 1000; //us
 const int UPDATE_500HZ = 2000; //us
 const int UPDATE_100HZ = 10000; //us
 
+// Watchdog timeout
+const int watchdog_timeout = 10; // ms
+
 // built-in led pin
 int led_pin = 13;
 #define LED_ON digitalWrite(led_pin,HIGH)
@@ -43,7 +46,10 @@ int led_pin = 13;
 
 /******** GLOBAL VARISBLES *********/
 
-// TODO: create serial object
+// TODO Document watchdog! 2/27 total fucking freakout bc vescs werent
+// sending new data after settings refresh so no angles received and
+// current was at max!
+elapsedMillis vesc_watchdog = 0;
 
 // Variable to keep track of the last time a debugging print message was sent
 // The elapsedMicros type automatically increments itself every loop execution!
@@ -258,10 +264,18 @@ int process_serial() {
 	return 0;
 }
 
+
 // TODO Change dual serial vesc to have method that exposes hardware serial
 // ports. that way we can loop through the serial ports the dual vesc class
 // uses without having to use this crappy code that manually checks each
 // hardware serial object
+
+void check_watchdog() {
+	if(vesc_watchdog > watchdog_timeout) {
+		transition_to_ESTOP();
+	}
+}
+
 int process_VESC_serial() {
 	int received = 0;
   while(VESC1_SERIAL.available()) {
@@ -275,6 +289,11 @@ int process_VESC_serial() {
 		dual_vesc.packet_process_byte_B(data);
 		received = 1;
 	}
+
+	if(received == 1) {
+		vesc_watchdog = 0;
+	}
+
 	return received;
 }
 
@@ -399,9 +418,7 @@ void loop() {
     // IMPORTANT: read any commands sent by the computer
     busy |= process_serial();
 
-    // IMPORTANT: for some reason the code doesn't work without this function call
-    // Probably has to do with a delay thing
-    // print_shit();
+		check_watchdog();
 
     switch(controller_state) {
       case STAGING:
