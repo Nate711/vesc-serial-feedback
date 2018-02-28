@@ -8,7 +8,6 @@
 #define PRINT_DEBUG false
 #define PRINT_CPU_USAGE false
 
-
 /********** MOTOR CONTROL CONFIGURATION ********/
 
 // Microseconds between receiving encoder readings from the VESC
@@ -28,17 +27,24 @@
 // reduces motor vibrations, probably because of better differentiation, but
 // running the Teensy-side PID at 2000hz doesn't improve PID performance very
 // much
-#define MAX_CURRENT 0.0 // 30 amps seems the max
+#define MAX_CURRENT 25.0 // 30 amps seems the max
+
+#define VESC_TIMEOUT 10 // ms
 
 ////// VESC 1 configuration //////
-#define VESC1_OFFSET 43 // updated 2/22 for robity v2
+#define VESC1_OFFSET 77 // updated 2/22 for robity v2
 #define VESC1_DIRECTION 1
 #define VESC1_SERIAL Serial4
 
 ////// VESC 2 configuration //////
-#define VESC2_OFFSET 47 // updated 2/22 for robity v2
+// TODO FIX OFFSET BUG. MOTOR INITTING TO WRONG ANGLE
+#define VESC2_OFFSET 360+47 // updated 2/22 for robity v2
 #define VESC2_DIRECTION -1
 #define VESC2_SERIAL Serial1
 
+// KittyHawk Demo
+#define TOUCH_TEST false
+#define GAIT_TEST true
+#define HOLD_TEST false
 
 #endif

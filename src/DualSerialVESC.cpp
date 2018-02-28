@@ -67,11 +67,30 @@ float DualVESC::normalized_to_vesc_angle(float normalized_angle,
 }
 
 /**
+ * TODO DOC
+ * @param IA [description]
+ * @param IB [description]
+ */
+void DualVESC::read_current(float& IA, float& IB) {
+  IA = last_current_A;
+  IB = last_current_B;
+}
+
+// TODO move watchdog code elsewhere!!!
+/**
 * Sends current command to the VESC
 */
 void DualVESC::_send_current(float current_A, float current_B) {
-  vesc_uart_A.set_current(current_A);
-  vesc_uart_B.set_current(current_B);
+  if((vesc_A_watchdog > VESC_TIMEOUT || vesc_B_watchdog > VESC_TIMEOUT) && alive) {
+    die();
+  }
+  else {
+    last_current_A = current_A;
+    last_current_B = current_B;
+
+    vesc_uart_A.set_current(current_A);
+    vesc_uart_B.set_current(current_B);
+  }
 }
 
 
@@ -89,7 +108,7 @@ void DualVESC::_send_current(float current_A, float current_B) {
 *                      teensy
 */
 // TODO add serial object to constructor
-DualVESC::DualVESC(int vesc_encoder_reading_period,
+DualVESC::DualVESC(int _vesc_encoder_period,
                    HardwareSerial* serial_port1,
                    HardwareSerial* serial_port2) :
                    pos_controller_theta(0,0),
@@ -105,8 +124,34 @@ DualVESC::DualVESC(int vesc_encoder_reading_period,
   vesc_vel_A = 0;
   vesc_vel_B = 0;
 
-  VESC_ENCODER_PERIOD = vesc_encoder_reading_period;
+  vesc_encoder_period = _vesc_encoder_period;
 }
+
+/**
+ * TODO DOC
+ * @return [description]
+ */
+bool DualVESC::isAlive() {
+  return alive;
+}
+
+/**
+ * TODO DOC
+ */
+void DualVESC::die() {
+  alive = false;
+  vesc_uart_A.set_current(0.0);
+  vesc_uart_B.set_current(0.0);
+
+  Serial.println("VESC WATCHDOG TRIGGERED");
+}
+
+void DualVESC::reset_watchdogs() {
+  vesc_A_watchdog = 0;
+  vesc_B_watchdog = 0;
+  alive = true;
+}
+
 /**
 * Processes a given byte over the teensy-vesc serial port.
 * TODO: Don't update position if the type of message received wasn't a
@@ -197,12 +242,17 @@ void DualVESC::update_angle_A(float angle) {
   utils_norm_angle(corrected);
 
   if (corrected - prev_angle_A > 180) {
-    num_rotations_A--;
+    // TODO Document that the initial value of prev angle will fuck up your rot count
+    if(prev_angle_A != 0.0) {
+      num_rotations_A--;
+    }
   } else if (corrected - prev_angle_A < -180) {
-    num_rotations_A++;
+    if(prev_angle_A != 0.0) {
+      num_rotations_A++;
+    }
   }
 
-  vesc_vel_A = (1000000 / VESC_ENCODER_PERIOD) * utils_angle_difference(corrected,vesc_angle_A);
+  vesc_vel_A = (1000000 / vesc_encoder_period) * utils_angle_difference(corrected,vesc_angle_A);
   vesc_vel_B *= encoder_direction_A;
 
   // Update angle state
@@ -210,19 +260,27 @@ void DualVESC::update_angle_A(float angle) {
   vesc_angle_A = encoder_direction_A * (vesc_angle_A - encoder_offset_A);
 
   prev_angle_A = corrected;
+
+  // reset watchdog timer
+  vesc_A_watchdog = 0;
 }
 
 void DualVESC::update_angle_B(float angle) {
   float corrected = angle;
   utils_norm_angle(corrected);
 
+  // TODO TODO TODO MASSIVE BUG MUST START LEG IN CORRECT POSITION OR BREAKS
   if (corrected - prev_angle_B > 180) {
-    num_rotations_B--;
+    if(prev_angle_B != 0.0) {
+      num_rotations_B--;
+    }
   } else if (corrected - prev_angle_B < -180) {
-    num_rotations_B++;
+    if(prev_angle_B != 0.0) {
+      num_rotations_B++;
+    }
   }
 
-  vesc_vel_B = (1000000/VESC_ENCODER_PERIOD) * utils_angle_difference(corrected,vesc_angle_B);
+  vesc_vel_B = (1000000 / vesc_encoder_period) * utils_angle_difference(corrected,vesc_angle_B);
   vesc_vel_B *= encoder_direction_B;
 
   // Update angle state
@@ -230,6 +288,9 @@ void DualVESC::update_angle_B(float angle) {
   vesc_angle_B = encoder_direction_B * (vesc_angle_B - encoder_offset_B);
 
   prev_angle_B = corrected;
+
+  // reset watchdog timer
+  vesc_B_watchdog = 0;
 }
 
 /**
@@ -352,7 +413,7 @@ void DualVESC::update_A(float alpha_setpoint) {
 
   // TODO fix encoder direction A multiplication hack
   float alpha_current = encoder_direction_A * max_current *
-        pos_controller_theta.compute_command(alpha_error, VESC_ENCODER_PERIOD);
+        pos_controller_theta.compute_command(alpha_error, vesc_encoder_period);
   _send_current(alpha_current,0);
 
   if(lastprint_A > 500) {
@@ -388,9 +449,9 @@ void DualVESC::pid_update(float theta_setpoint, float gamma_setpoint) {
   float error_gamma = gamma_deg - gamma_setpoint;
 
   float theta_current = max_current *
-         pos_controller_theta.compute_command(error_theta, VESC_ENCODER_PERIOD);
+         pos_controller_theta.compute_command(error_theta, vesc_encoder_period);
   float gamma_current = max_current *
-         pos_controller_gamma.compute_command(error_gamma, VESC_ENCODER_PERIOD);
+         pos_controller_gamma.compute_command(error_gamma, vesc_encoder_period);
 
   // TODO frame all motor angle conversions as coordinate system changes
   // TODO multiply currents by motor direction so pid based on normalized angles
@@ -403,7 +464,14 @@ void DualVESC::pid_update(float theta_setpoint, float gamma_setpoint) {
   float current_B = encoder_direction_B *
                     (0.5 * theta_current + 0.5 * gamma_current);
 
-  if(lastprint > 500) {
+  // TODO resolve anti cogging 2/27
+  // if(current_A > 0) {
+  //   current_A += 0.5;
+  // } else {
+  //   current_A -= 0.5;
+  // }
+
+  if(lastprint > 100) {
     Serial.print("AB: ");
     Serial.print(vesc_angle_A);
     Serial.print('\t');
@@ -416,6 +484,10 @@ void DualVESC::pid_update(float theta_setpoint, float gamma_setpoint) {
     Serial.print(error_theta);
     Serial.print('\t');
     Serial.print(error_gamma);
+    Serial.print("\tThY SP: ");
+    Serial.print(theta_setpoint);
+    Serial.print('\t');
+    Serial.print(gamma_setpoint);
     Serial.print("\t Iab: ");
     Serial.print(current_A);
     Serial.print('\t');

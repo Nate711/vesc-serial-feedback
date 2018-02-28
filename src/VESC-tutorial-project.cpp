@@ -34,9 +34,6 @@ const int UPDATE_1000HZ = 1000; //us
 const int UPDATE_500HZ = 2000; //us
 const int UPDATE_100HZ = 10000; //us
 
-// Watchdog timeout
-const int watchdog_timeout = 10; // ms
-
 // built-in led pin
 int led_pin = 13;
 #define LED_ON digitalWrite(led_pin,HIGH)
@@ -49,7 +46,6 @@ int led_pin = 13;
 // TODO Document watchdog! 2/27 total fucking freakout bc vescs werent
 // sending new data after settings refresh so no angles received and
 // current was at max!
-elapsedMillis vesc_watchdog = 0;
 
 // Variable to keep track of the last time a debugging print message was sent
 // The elapsedMicros type automatically increments itself every loop execution!
@@ -166,6 +162,8 @@ void transition_to_running() {
 
 	VESC1_SERIAL.clear();
 	VESC2_SERIAL.clear();
+
+	dual_vesc.reset_watchdogs();
 }
 
 /**
@@ -271,8 +269,10 @@ int process_serial() {
 // hardware serial object
 
 void check_watchdog() {
-	if(vesc_watchdog > watchdog_timeout) {
-		transition_to_ESTOP();
+	if(!dual_vesc.isAlive()){
+		if(controller_state != ESTOP) {
+			transition_to_ESTOP();
+		}
 	}
 }
 
@@ -288,10 +288,6 @@ int process_VESC_serial() {
 		uint8_t data = VESC2_SERIAL.read();
 		dual_vesc.packet_process_byte_B(data);
 		received = 1;
-	}
-
-	if(received == 1) {
-		vesc_watchdog = 0;
 	}
 
 	return received;
@@ -315,21 +311,55 @@ int RUNNING_STATE() {
 	if(elapsed_2000HZ > UPDATE_2000HZ) {
 		elapsed_2000HZ = 0;
 
-		/*** STATIONARY COUPLED PID TESTS ***/
-		dual_vesc.set_pid_gains(0.01, 0.0005, 0.05, 0.0005);
-		// dual_vesc.set_pid_gains(0.06, 0.0005, 0.00, 0.0005);
-		// dual_vesc.set_pid_gains(0.00, 0.0005, 0.06, 0.001);
-		dual_vesc.pid_update(90,45);
-		/*** COUPLED TESTS END ***/
+		if(HOLD_TEST) {
+			/*** STATIONARY COUPLED PID TESTS ***/
+			// 1. strong theta, loose gamma
+			dual_vesc.set_pid_gains(0.08, 0.0005, 0.005, 0.0005);
+			// 2. loose theta, strong gamma
+			// dual_vesc.set_pid_gains(0.005, 0.0005, 0.06, 0.0005);
+			// 3. No theta, strong gamma
+			// dual_vesc.set_pid_gains(0.00, 0.0005, 0.06, 0.001);
 
+			dual_vesc.pid_update(90,60);
+			/*** COUPLED TESTS END ***/
+	  }
+
+		float millis_running = millis() - running_timestamp;
 		/*** GAIT TEST ***/
-		// float theta_sp, gamma_sp;
-		// float t = millis() / 1000.0;
-		// gait_control(t, theta_sp, gamma_sp);
-		//
-		// dual_vesc.set_pid_gains(0.06, 0.0005, 0.01, 0.0005);
-		// dual_vesc.pid_update(theta_sp, gamma_sp);
+		if(GAIT_TEST) {
+			float theta_sp, gamma_sp;
+			float t = millis_running / 1000.0;
+			gait_control(t, theta_sp, gamma_sp);
+
+			dual_vesc.set_pid_gains(0.06, 0.0005, 0.01, 0.0005);
+			dual_vesc.pid_update(theta_sp, gamma_sp);
+		}
 		/*** END GAIT TEST ***/
+
+		/*** TOUCH TEST ***/
+		if(TOUCH_TEST) {
+			float ia, ib;
+			dual_vesc.read_current(ia,ib);
+
+			// 1. Good for trajectory at 25A: 8.0A
+			// 2. Good for hold at 25A: 3.0A
+			float thres;
+			if(HOLD_TEST) {
+				thres = 4.0;
+			} else if(GAIT_TEST) {
+				thres = 10.0;
+			} else {
+				thres = 2.0;
+			}
+
+			int touch_delay = 500;
+
+			if((abs(ia) > thres || abs(ib) > thres) && (millis_running > touch_delay)) {
+				Serial.println(millis_running);
+				transition_to_ESTOP();
+			}
+		}
+		/*** TOUCH TEST END ***/
 
 		executed_code |= 1;
 	}
@@ -372,12 +402,15 @@ int RUNNING_STATE() {
 /**
  * ESTOP: Stops motor in emergency
  */
+// TODO wrap code in loop, dont use delay
 void ESTOP_STATE() {
   dual_vesc.write_current(0.0f, 0.0f);
 
 	// Pause for 100ms
 	long now = millis();
-	while(millis() - now < 100) {}
+	while(millis() - now < 100) {
+		process_VESC_serial();
+	}
 }
 
 /**
@@ -463,7 +496,7 @@ void loop() {
 void gait_control(float t, float& theta_sp, float& gamma_sp) {
 	float theta_amp = 45.0;
 	float gamma_amp = 90.0;
-	float freq = 0.5; // once every two sec
+	float freq = 2.0; // once every two sec
 	float theta_offset = 90.0;
 	float gamma_offset = 45.0;
 
@@ -471,13 +504,13 @@ void gait_control(float t, float& theta_sp, float& gamma_sp) {
 	// gamma goes from 45 to 135 as a max(cos,0) wave
 
 	// 3rd order triangle wave for theta
-	theta_sp = sinusoid(t, theta_amp, freq, 0.0, theta_offset) +
-						 sinusoid(t, theta_amp/9.0, freq*3.0, 0.0, theta_offset);
-	theta_sp *= 0.9; // (normalizer to make amplitude correct)
+	theta_sp = sinusoid(t, theta_amp, freq, 0.0, theta_offset);// +
+						 // sinusoid(t, theta_amp/9.0, freq*3.0, 0.0, theta_offset);
+	// theta_sp *= 0.9; // (normalizer to make amplitude correct)
 
 	// truncated sinusoid
 	gamma_sp = sinusoid(t, gamma_amp, freq, PI/2.0, gamma_offset);
-	constrain(gamma_sp, gamma_offset, 180.0);
+	gamma_sp = constrain(gamma_sp, gamma_offset, 180.0);
 }
 
 /**
@@ -527,7 +560,13 @@ void encoder_printing() {
 		Serial.print(" ");
 		Serial.print(dual_vesc.read_A());
 		Serial.print(" ");
-		Serial.println(dual_vesc.read_B());
+		Serial.print(dual_vesc.read_B());
+		Serial.print("\t I: ");
+		float IA, IB;
+		dual_vesc.read_current(IA,IB);
+		Serial.print(IA);
+		Serial.print(" ");
+		Serial.println(IB);
 	}
 }
 

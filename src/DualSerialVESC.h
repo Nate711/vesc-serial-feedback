@@ -46,6 +46,9 @@ private:
   // Default current limit
   float max_current = 0; // amps
 
+	float last_current_A = 0;
+	float last_current_B = 0;
+
   // corrected position and velocity of the motor
   float vesc_angle_A = 0;
 	float vesc_angle_B = 0;
@@ -68,13 +71,17 @@ private:
 	VESCUart vesc_uart_A;
 	VESCUart vesc_uart_B;
 
-	int VESC_ENCODER_PERIOD;
+	int vesc_encoder_period;
 
   // keep track of elapsed milliseconds since last prints
   elapsedMillis last_print_debug=0;
 	elapsedMillis print_w=0;
 
+	elapsedMillis vesc_A_watchdog = 0;
+	elapsedMillis vesc_B_watchdog = 0;
 
+	const int VESC_TIMEOUT = 20; // TODO make this configurable 2/27
+	bool alive = true;
 
 	/**
 	 * Converts an angle in the vesc encoder reference frame to a normalized angle
@@ -130,6 +137,21 @@ public:
 	 * @param serial_port : reference to SERIAL object
 	 */
   DualVESC(int encoder_period, HardwareSerial* serial_port1, HardwareSerial* serial_port2);
+
+	void read_current(float& IA, float& IB);
+
+	/**
+	 * TODO DOC
+	 */
+	void die();
+
+	/**
+	 * TODO DOC
+	 * @return [description]
+	 */
+	bool isAlive();
+
+	void reset_watchdogs();
 
 	/**
 	 * Processes the given byte from the serial stream
