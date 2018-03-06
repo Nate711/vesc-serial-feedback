@@ -26,9 +26,7 @@
 
 /********* CONSTANTS *********/
 
-// Send position commands at 500hz (1s / 2000us)
-// const int UPDATE_PERIOD =  2000; // us
-// const int UPDATE_PERIOD =  10000; // us
+// Number of microseconds for various frequencies
 const int UPDATE_2000HZ = 500; //us
 const int UPDATE_1000HZ = 1000; //us
 const int UPDATE_500HZ = 2000; //us
@@ -43,9 +41,9 @@ int led_pin = 13;
 
 /******** GLOBAL VARISBLES *********/
 
-// TODO Document watchdog! 2/27 total fucking freakout bc vescs werent
-// sending new data after settings refresh so no angles received and
-// current was at max!
+// TODO Document the new watchdog! 2/27: total freakout bc vescs were not
+// sending new data after settings refresh, so pid were acting on old angles
+// -> current was at max!
 
 // Variable to keep track of the last time a debugging print message was sent
 // The elapsedMicros type automatically increments itself every loop execution!
@@ -60,22 +58,21 @@ elapsedMicros elapsed_1000HZ = 0;
 elapsedMicros elapsed_2000HZ = 0;
 
 // VESC motor objects
-// VESC vesc1(VESC_ENCODER_PERIOD, &VESC1_SERIAL);
-// VESC vesc2(VESC_ENCODER_PERIOD, &VESC2_SERIAL);
 DualVESC dual_vesc(VESC_ENCODER_PERIOD, &VESC1_SERIAL, &VESC2_SERIAL);
 
-// STATE MACHINE STATE VARIABLE
+// STATE MACHINE enumerable
 enum controller_state_machine {
 	STAGING,
 	RUNNING,
 	ESTOP
 };
+// Start in the staging state
 controller_state_machine controller_state = STAGING;
 
-// Keep track of when RUNNING was entered
+// Keep track of when the RUNNING state was entered
 long running_timestamp;
 
-// Keep track of positio and gain targets
+// Keep track of position and gain targets
 struct vesc_pos_gain_command vesc_pos_gain_target = {0.0, 0.0, 0.0};
 
 /********** END GLOBAL VARIABLES ******/
@@ -198,7 +195,7 @@ int process_serial() {
 		/***** G1 COMMAND ******/
 		// Send G1 X[pos as float] P[Kp as float] D[kd value as float] to command
 		// the teensy to send a position and pid gain command to the vesc
-    // TODO: Add defensive error catching stuff
+    // TODO: Add defensive error catching code
 		if(message[0] == 'G' && message[1] == '1') {
 			int x_index = message.indexOf('X');
 			int x_end = message.indexOf(' ',x_index);
@@ -212,6 +209,7 @@ int process_serial() {
 			int d_end = message.indexOf(' ',d_index);
 			String kd_string = message.substring(d_index+1, d_end);
 
+      // TODO: figure out why my checks were failing on good input
 			// If any of X or P or D was not received
 			// exit out because it was a bad message
 			// if(x_index == -1 || x_end == -1 ||
@@ -255,19 +253,15 @@ int process_serial() {
 		}
 
 		return 1;
-    // Clear the buffer after the first byte is read.
-    // So don't send multiple commands at once and expect any but the first to be executed
-    // Serial.clear();
   }
 	return 0;
 }
 
-
-// TODO Change dual serial vesc to have method that exposes hardware serial
-// ports. that way we can loop through the serial ports the dual vesc class
-// uses without having to use this crappy code that manually checks each
-// hardware serial object
-
+/**
+ * Checks to make sure that the dualvesc is still alive, aka, both motor
+ * motor controllers are sending good encoder values. If the dual vesc is
+ * dead, transition to the ESTOP state.
+ */
 void check_watchdog() {
 	if(!dual_vesc.isAlive()){
 		if(controller_state != ESTOP) {
@@ -276,6 +270,16 @@ void check_watchdog() {
 	}
 }
 
+// TODO Change dual serial vesc to have method that exposes hardware serial
+// ports. that way we can loop through the serial ports the dual vesc class
+// uses without having to use this crappy code that manually checks each
+// hardware serial object
+
+/**
+ * Checks to see if the VESCs have sent any serial messages to the Teensy. If
+ * they have, process the byte(s) received and return 1. Otherwise return 0.
+ * @return 1 if received serial on either motor channel, 0 if otherwise
+ */
 int process_VESC_serial() {
 	int received = 0;
   while(VESC1_SERIAL.available()) {
@@ -294,7 +298,8 @@ int process_VESC_serial() {
 }
 
 /**
- * Initial state, Teensy boots into this state. Idles.
+ * Initial state, Teensy boots into this state. Sits idly waiting for the
+ * start command over computer-to-teensy serial connection (serial monitor)
  */
 void STAGING_STATE() {
   // vesc1.write_current(0.0f);
@@ -347,7 +352,7 @@ int RUNNING_STATE() {
 			if(HOLD_TEST) {
 				thres = 4.0;
 			} else if(GAIT_TEST) {
-				thres = 10.0;
+				thres = 12.0;
 			} else {
 				thres = 2.0;
 			}
@@ -402,7 +407,7 @@ int RUNNING_STATE() {
 /**
  * ESTOP: Stops motor in emergency
  */
-// TODO wrap code in loop, dont use delay
+// TODO wrap code in loop, dont use delay!!
 void ESTOP_STATE() {
   dual_vesc.write_current(0.0f, 0.0f);
 
@@ -417,32 +422,31 @@ void ESTOP_STATE() {
  * Called when Teensy boots
  */
 void setup() {
-  // TODO initialize serial4
+  // Initialize both serial ports for communication
 	VESC1_SERIAL.begin(VESC_BAUDRATE);
 	VESC1_SERIAL.clear();
 
 	VESC2_SERIAL.begin(VESC_BAUDRATE);
 	VESC2_SERIAL.clear();
 
-	// Init Serial
+	// Init computer-to-teensy serial connection
 	Serial.begin(COMPUTER_BAUDRATE);
   Serial.println("CAN Transmitter Initialized");
-	Serial.setTimeout(2); // 2 ms timeout
+	Serial.setTimeout(2); // 2 ms timeout for computer to teensy comms
 
   // Initialize "power on" led
   pinMode(led_pin, OUTPUT);
   digitalWrite(led_pin, HIGH);
-
-
 
   // Initialize VESC controller objects
   dual_vesc.attach(VESC1_OFFSET, VESC1_DIRECTION,
 								   VESC2_OFFSET, VESC2_DIRECTION,
                		 MAX_CURRENT);
 
-	// Wait for shit to get set up
+	// Wait for arbitrary amount of time to let other things set up (no reason)
   delay(1000);
 
+  // Clear the serial messages received over the previous 1 second delay
 	VESC1_SERIAL.clear();
 	VESC2_SERIAL.clear();
 }
@@ -496,7 +500,7 @@ void loop() {
 void gait_control(float t, float& theta_sp, float& gamma_sp) {
 	float theta_amp = 45.0;
 	float gamma_amp = 90.0;
-	float freq = 2.0; // once every two sec
+	float freq = 0.3; // once every two sec
 	float theta_offset = 90.0;
 	float gamma_offset = 45.0;
 
@@ -525,6 +529,9 @@ float sinusoid(float t, float amp, float freq, float phase_shift, float yshift) 
 	return amp * sin(t*freq*2*PI - phase_shift) + yshift;
 }
 
+/**
+ * Print the position and PD gain structure values
+ */
 void print_pos_gain_target() {
 	Serial.print("x: ");
 	Serial.print(vesc_pos_gain_target.pos,1);

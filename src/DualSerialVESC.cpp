@@ -98,7 +98,7 @@ void DualVESC::_send_current(float current_A, float current_B) {
 
 /**
 * Constructs VESC object with initial params
-* I dont understand member initializer lists :( but CANtx breaks without it
+* I dont understand the point of member initializer lists
 *
 * @param vesc_encoder_reading_period : Tell the VESC object how often it is
 *                                      getting new encoder readings.
@@ -146,6 +146,9 @@ void DualVESC::die() {
   Serial.println("VESC WATCHDOG TRIGGERED");
 }
 
+/**
+ * TODO: create doc
+ */
 void DualVESC::reset_watchdogs() {
   vesc_A_watchdog = 0;
   vesc_B_watchdog = 0;
@@ -237,6 +240,11 @@ float DualVESC::read_B() {
   return vesc_to_normalized_angle(vesc_angle_B, encoder_offset_B, encoder_direction_B);
 }
 
+/**
+ * Take in an angle received over serial and update the angle of the motor
+ * in the operation space
+ * @param angle angle received over serial from the vesc
+ */
 void DualVESC::update_angle_A(float angle) {
   float corrected = angle;
   utils_norm_angle(corrected);
@@ -265,6 +273,11 @@ void DualVESC::update_angle_A(float angle) {
   vesc_A_watchdog = 0;
 }
 
+/**
+ * Take in an angle received over serial and update the angle of the motor
+ * in the operation space
+ * @param angle angle received over serial from the vesc
+ */
 void DualVESC::update_angle_B(float angle) {
   float corrected = angle;
   utils_norm_angle(corrected);
@@ -292,49 +305,6 @@ void DualVESC::update_angle_B(float angle) {
   // reset watchdog timer
   vesc_B_watchdog = 0;
 }
-
-/**
-* Updates the VESC objects knowledge of the motor angle
-* Takes between 4 and 5 us when using the while loop-based normalize
-* angle function
-*
-* @param angle : measured position in vesc encoder frame. degrees
-* automatically normalizes the given angle (no > 180deg moves)
-*/
-// void DualVESC::update_angle_A(float angle) {
-//   float corrected = angle;
-//
-//   // convert to 0 360 for safety
-//   utils_norm_angle(corrected);
-//
-//   // THIS IS AN UNTESTED FIX to the velocity calculation bug
-//   vesc_vel_A = (MICROSPERSEC / VESC_ENCODER_PERIOD) * utils_angle_difference(corrected,vesc_angle_A);
-//
-//   // NOTE: adding lowpass of A=0.5 or 0.8 made vibrations worse (or no diff)!
-//
-//   // Update angle state
-//   vesc_angle_A = corrected;
-// }
-
-/**
-* Updates the VESC objects knowledge of the motor angle
-* Takes between 4 and 5 us when using the while loop-based normalize
-* angle function
-*
-* @param angle : measured position in vesc encoder frame. degrees
-* automatically normalizes the given angle (no > 180deg moves)
-*/
-// void DualVESC::update_angle_B(float angle) {
-//   float corrected = angle;
-//
-//   utils_norm_angle(corrected);
-//
-//   // THIS IS AN UNTESTED FIX to the velocity calculation bug
-//   vesc_vel_B = (MICROSPERSEC / VESC_ENCODER_PERIOD) * utils_angle_difference(corrected,vesc_angle_B);
-//   // NOTE: adding lowpass of A=0.5 or 0.8 made vibrations worse (or no diff)!
-//
-//   vesc_angle_B = corrected;
-// }
 
 /**
 * Prints VESC object state
@@ -402,11 +372,22 @@ float theta(float alpha, float beta) {
   return (alpha + beta) * 0.5;
 }
 
+/**
+* Given the two motor angles, return gamma, the angle seperation of the legs
+* divided by two
+* @param  alpha angle of link on the RIGHT (smaller angle usually)
+* @param  beta  angle of link on the LEFT (larger angle usually)
+* @return       angle between horizontal and line from hip to foot
+*/
 float gamma(float alpha, float beta) {
   return (beta - alpha) * 0.5;
 }
 
 elapsedMillis lastprint_A = 0;
+/**
+ * TODO: Create doc
+ * @param alpha_setpoint [description]
+ */
 void DualVESC::update_A(float alpha_setpoint) {
   float alpha = vesc_angle_A;
   float alpha_error = alpha - alpha_setpoint;
@@ -425,12 +406,13 @@ void DualVESC::update_A(float alpha_setpoint) {
   }
 }
 
-/**
-* Compute PID output and send to VESC. Uses last given values
-*/
-// TODO complete decoupled PID
-// TODO check directions of current going to motor!!
 elapsedMillis lastprint = 0;
+
+/**
+ * Compute PID output and send to VESC. Uses last given values
+ * @param theta_setpoint Set point for leg theta angle
+ * @param gamma_setpoint  Set point for leg gamma angle
+ */
 void DualVESC::pid_update(float theta_setpoint, float gamma_setpoint) {
   // alpha is angle of motor with link closest to right horizontal
   // beta is angle of motor with link further away
@@ -464,7 +446,7 @@ void DualVESC::pid_update(float theta_setpoint, float gamma_setpoint) {
   float current_B = encoder_direction_B *
                     (0.5 * theta_current + 0.5 * gamma_current);
 
-  // TODO resolve anti cogging 2/27
+  // TODO resolve anti cogging and anti stiction 2/27
   // if(current_A > 0) {
   //   current_A += 0.5;
   // } else {
@@ -495,8 +477,6 @@ void DualVESC::pid_update(float theta_setpoint, float gamma_setpoint) {
     lastprint = 0;
   }
 
-  // TODO current_B should be multiplied by -1
-  // TODO, figure out sign of current and encoder shit
   _send_current(current_A, current_B);
 }
 
