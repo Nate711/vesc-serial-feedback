@@ -261,7 +261,7 @@ void DualVESC::update_angle_A(float angle) {
   }
 
   vesc_vel_A = (MICROSPERSEC / vesc_encoder_period) * utils_angle_difference(corrected,vesc_angle_A);
-  vesc_vel_B *= encoder_direction_A;
+  vesc_vel_A *= encoder_direction_A;
 
   // Update angle state
   vesc_angle_A = (360.0f * num_rotations_A + corrected);
