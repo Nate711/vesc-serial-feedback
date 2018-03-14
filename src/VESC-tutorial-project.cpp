@@ -331,12 +331,20 @@ int RUNNING_STATE() {
 
 		float millis_running = millis() - running_timestamp;
 		/*** GAIT TEST ***/
+		if(JUMP_TEST) {
+			float theta_sp, gamma_sp;
+			float t = millis_running / 1000.0;
+			jumping_gait_control(t, theta_sp, gamma_sp);
+
+			dual_vesc.set_pid_gains(0.06, 0.0005, 0.05, 0.0005);
+			dual_vesc.pid_update(theta_sp, gamma_sp);
+		}
 		if(GAIT_TEST) {
 			float theta_sp, gamma_sp;
 			float t = millis_running / 1000.0;
-			gait_control(t, theta_sp, gamma_sp);
+			walking_gait_control(t, theta_sp, gamma_sp);
 
-			dual_vesc.set_pid_gains(0.06, 0.0005, 0.01, 0.0005);
+			dual_vesc.set_pid_gains(0.06, 0.0005, 0.05, 0.0005);
 			dual_vesc.pid_update(theta_sp, gamma_sp);
 		}
 		/*** END GAIT TEST ***/
@@ -497,10 +505,35 @@ void loop() {
  * @param theta_sp [description]
  * @param gamma_sp [description]
  */
-void gait_control(float t, float& theta_sp, float& gamma_sp) {
-	float theta_amp = 45.0;
+void jumping_gait_control(float t, float& theta_sp, float& gamma_sp) {
+	float theta_amp = 0.0;
+	float gamma_amp = 45.0;
+	float freq = 3; // once every two sec
+	float theta_offset = 90.0;
+	float gamma_offset = 90.0;
+
+	// theta goes from 45 to 135 as a triangle wave
+	// gamma goes from 45 to 135 as a max(cos,0) wave
+
+	// 3rd order triangle wave for theta
+	theta_sp = sinusoid(t, theta_amp, freq, 0.0, theta_offset);// +
+						 // sinusoid(t, theta_amp/9.0, freq*3.0, 0.0, theta_offset);
+	// theta_sp *= 0.9; // (normalizer to make amplitude correct)
+
+	// truncated sinusoid
+	gamma_sp = sinusoid(t, gamma_amp, freq, PI/2.0, gamma_offset);
+}
+
+/**
+ * Updates a theta and gamma setpoint based on a
+ * @param t        [description]
+ * @param theta_sp [description]
+ * @param gamma_sp [description]
+ */
+void walking_gait_control(float t, float& theta_sp, float& gamma_sp) {
+	float theta_amp = 15.0;
 	float gamma_amp = 90.0;
-	float freq = 0.3; // once every two sec
+	float freq = 1.8; // once every two sec
 	float theta_offset = 90.0;
 	float gamma_offset = 45.0;
 

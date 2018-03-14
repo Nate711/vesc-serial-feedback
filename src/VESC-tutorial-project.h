@@ -6,7 +6,9 @@
 
 // App specific functions
 float sinusoid(float t, float amp, float freq, float phase_shift, float yshift);
-void gait_control(float t, float& theta_sp, float& gamma_sp);
+void walking_gait_control(float t, float& theta_sp, float& gamma_sp);
+void jumping_gait_control(float t, float& theta_sp, float& gamma_sp);
+
 
 void update_pos_and_gain_target(float pos, float kp, float kd);
 void send_vesc_target(VESC &vesc, struct vesc_pos_gain_command &comm);
