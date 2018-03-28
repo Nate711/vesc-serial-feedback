@@ -415,9 +415,19 @@ elapsedMillis lastprint = 0;
 */
 float DualVESC::get_gamma() {
   // Calculate gamma and return
-  float gamma_deg;
-  gamma_deg = gamma(vesc_angle_A,vesc_angle_B);
+  float gamma_deg = gamma(vesc_angle_A,vesc_angle_B);
   return gamma_deg;
+}
+
+/**
+* Calculates and returns the current value of gamma based on current
+* encoder angles.
+* @return gamma_deg the current gamma
+*/
+float DualVESC::get_theta() {
+  // Calculate gamma and return
+  float theta_deg = theta(vesc_angle_A,vesc_angle_B);
+  return theta_deg;
 }
 
 /**
@@ -464,30 +474,30 @@ void DualVESC::pid_update(float theta_setpoint, float gamma_setpoint) {
   // } else {
   //   current_A -= 0.5;
   // }
-
-  if(lastprint > 100) {
-    Serial.print("AB: ");
-    Serial.print(vesc_angle_A);
-    Serial.print('\t');
-    Serial.print(vesc_angle_B);
-    Serial.print("\tThY: ");
-    Serial.print(theta_deg);
-    Serial.print('\t');
-    Serial.print(gamma_deg);
-    Serial.print("\tThY Err: ");
-    Serial.print(error_theta);
-    Serial.print('\t');
-    Serial.print(error_gamma);
-    Serial.print("\tThY SP: ");
-    Serial.print(theta_setpoint);
-    Serial.print('\t');
-    Serial.print(gamma_setpoint);
-    Serial.print("\t Iab: ");
-    Serial.print(current_A);
-    Serial.print('\t');
-    Serial.println(current_B);
-    lastprint = 0;
-  }
+  //
+  // if(lastprint > 100) {
+  //   Serial.print("AB: ");
+  //   Serial.print(vesc_angle_A);
+  //   Serial.print('\t');
+  //   Serial.print(vesc_angle_B);
+  //   Serial.print("\tThY: ");
+  //   Serial.print(theta_deg);
+  //   Serial.print('\t');
+  //   Serial.print(gamma_deg);
+  //   Serial.print("\tThY Err: ");
+  //   Serial.print(error_theta);
+  //   Serial.print('\t');
+  //   Serial.print(error_gamma);
+  //   Serial.print("\tThY SP: ");
+  //   Serial.print(theta_setpoint);
+  //   Serial.print('\t');
+  //   Serial.print(gamma_setpoint);
+  //   Serial.print("\t Iab: ");
+  //   Serial.print(current_A);
+  //   Serial.print('\t');
+  //   Serial.println(current_B);
+  //   lastprint = 0;
+  // }
 
   _send_current(current_A, current_B);
 }

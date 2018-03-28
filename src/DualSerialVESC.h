@@ -235,6 +235,13 @@ public:
 	* @return current calculated gamma based on encoder angles
 	*/
 	float get_gamma();
+
+	/**
+	* Getter function for gamma.
+	* @return current calculated gamma based on encoder angles
+	*/
+	float get_theta();
+
 	/**
 	 * Same as above except uses absolute angle
 	 * @param set_point [description]

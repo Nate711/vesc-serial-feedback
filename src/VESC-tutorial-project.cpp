@@ -424,8 +424,6 @@ int RUNNING_STATE() {
 	if(elapsed_500HZ > UPDATE_500HZ) {
 		elapsed_500HZ = 0;
 
-		encoder_printing();
-
 		executed_code |= 1;
 	}
 	// 100Hz loop
@@ -437,6 +435,7 @@ int RUNNING_STATE() {
 			dual_vesc.print_debug();
 		}
 
+		encoder_printing();
 
 		executed_code |= 1;
 	}
@@ -639,15 +638,19 @@ void stop_encoder_prints() {
 void encoder_printing() {
 	if(print_encoder_readings) {
 		Serial.print(millis());
-		Serial.print(" ");
+		Serial.print("\t");
 		Serial.print(dual_vesc.read_A());
-		Serial.print(" ");
+		Serial.print("\t");
 		Serial.print(dual_vesc.read_B());
-		Serial.print("\t I: ");
+		Serial.print("\t");
+		Serial.print(dual_vesc.get_theta());
+		Serial.print("\t");
+		Serial.print(dual_vesc.get_gamma());
+		Serial.print("\t");
 		float IA, IB;
 		dual_vesc.read_current(IA,IB);
 		Serial.print(IA);
-		Serial.print(" ");
+		Serial.print("\t");
 		Serial.println(IB);
 	}
 }
