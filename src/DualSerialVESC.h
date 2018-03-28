@@ -231,6 +231,11 @@ public:
 	void update_A(float alpha_setpoint);
 
 	/**
+	* Getter function for gamma.
+	* @return current calculated gamma based on encoder angles
+	*/
+	float get_gamma();
+	/**
 	 * Same as above except uses absolute angle
 	 * @param set_point [description]
 	 */

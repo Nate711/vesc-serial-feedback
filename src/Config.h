@@ -27,7 +27,7 @@
 // reduces motor vibrations, probably because of better differentiation, but
 // running the Teensy-side PID at 2000hz doesn't improve PID performance very
 // much
-#define MAX_CURRENT 30.0 // 30 amps seems the max
+#define MAX_CURRENT 45.0 // 30 amps seems the max
 
 #define VESC_TIMEOUT 10 // ms
 
@@ -44,8 +44,9 @@
 
 // KittyHawk Demo
 #define TOUCH_TEST false
-#define GAIT_TEST true
+#define GAIT_TEST false
 #define HOLD_TEST false
 #define JUMP_TEST false
+#define HOP_TEST true
 
 #endif

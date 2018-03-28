@@ -66,8 +66,19 @@ enum controller_state_machine {
 	RUNNING,
 	ESTOP
 };
+
 // Start in the staging state
 controller_state_machine controller_state = STAGING;
+
+// Enumerable for hopping state. Only relevant for the hop test. State machine
+// within RUNNING.
+enum hopping_state_machine {
+	STANCE,
+	AIR
+};
+// Start in the stance state
+hopping_state_machine hopping_state = STANCE;
+
 
 // Keep track of when the RUNNING state was entered
 long running_timestamp;
@@ -330,6 +341,26 @@ int RUNNING_STATE() {
 	  }
 
 		float millis_running = millis() - running_timestamp;
+
+		/** HOPPING CODE **/
+		if(HOP_TEST){
+			float theta_sp = 90;
+			float gamma_sp = 30;
+			float gamma_deg = dual_vesc.get_gamma();
+
+			if(hopping_state == STANCE) {
+					if(gamma_deg <= 45) {
+						hopping_state = AIR;
+					}
+					dual_vesc.set_pid_gains(0.08, 0.0005, 0.080, 0.0005); //TODO tune
+			} else if(hopping_state == AIR) {
+					if(gamma_deg >= 135){
+						hopping_state = STANCE;
+					}
+					dual_vesc.set_pid_gains(0.08, 0.0005, 0.001, 0.0005); //TODO tune
+			}
+			dual_vesc.pid_update(theta_sp, gamma_sp);
+		}
 		/*** GAIT TEST ***/
 		if(JUMP_TEST) {
 			float theta_sp, gamma_sp;
@@ -494,6 +525,17 @@ void loop() {
 
 		if(PRINT_CPU_USAGE) {
 			print_processor_usage(busy_loops,idle_loops);
+
+			switch(hopping_state) {
+	      case AIR:
+	        Serial.print("AIR");
+	        break;
+	      case STANCE:
+	        Serial.print("STANCE");
+	        break;
+	      default:
+	        break;
+	    }
 		}
 }
 

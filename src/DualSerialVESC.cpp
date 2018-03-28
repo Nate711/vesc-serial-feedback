@@ -409,6 +409,18 @@ void DualVESC::update_A(float alpha_setpoint) {
 elapsedMillis lastprint = 0;
 
 /**
+* Calculates and returns the current value of gamma based on current
+* encoder angles.
+* @return gamma_deg the current gamma
+*/
+float DualVESC::get_gamma() {
+  // Calculate gamma and return
+  float gamma_deg;
+  gamma_deg = gamma(vesc_angle_A,vesc_angle_B);
+  return gamma_deg;
+}
+
+/**
  * Compute PID output and send to VESC. Uses last given values
  * @param theta_setpoint Set point for leg theta angle
  * @param gamma_setpoint  Set point for leg gamma angle
