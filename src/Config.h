@@ -42,11 +42,35 @@
 #define VESC2_DIRECTION -1
 #define VESC2_SERIAL Serial1
 
-// KittyHawk Demo
+
+
+/************** TEST CONFIGURATION **************/
 #define TOUCH_TEST false
 #define GAIT_TEST false
 #define HOLD_TEST false
 #define JUMP_TEST false
 #define HOP_TEST true
+
+#define PRINT_HOPPING_STATE true
+
+// Governs when transition from flight to loading is made:
+// Must be > than gamma_sp
+float LOADING_GAMMA_TRIGGER = 40;
+
+// Governs transition from unloading to flight
+float FLIGHT_GAMMA_TRIGGER = LOADING_GAMMA_TRIGGER;
+
+// Governs transition from loading to compression:
+// Must be > than LOADING_GAMMA_TRIGGER
+float COMPRESSION_GAMMA_TRIGGER = 60;
+
+// Governs transition from thrust to unloading
+float UNLOADING_GAMMA_TRIGGER = COMPRESSION_GAMMA_TRIGGER;
+
+// Governs transition from compression to THRUST
+// TODO: make this trigger related to derivative of gamma, not an
+// angle threshold.
+// TODO: check that with constant kp, the robot actually jumps back up
+float THRUST_GAMMA_TRIGGER = 135;
 
 #endif

@@ -60,24 +60,11 @@ elapsedMicros elapsed_2000HZ = 0;
 // VESC motor objects
 DualVESC dual_vesc(VESC_ENCODER_PERIOD, &VESC1_SERIAL, &VESC2_SERIAL);
 
-// STATE MACHINE enumerable
-enum controller_state_machine {
-	STAGING,
-	RUNNING,
-	ESTOP
-};
-
 // Start in the staging state
 controller_state_machine controller_state = STAGING;
 
-// Enumerable for hopping state. Only relevant for the hop test. State machine
-// within RUNNING.
-enum hopping_state_machine {
-	STANCE,
-	AIR
-};
-// Start in the stance state
-hopping_state_machine hopping_state = STANCE;
+// Start in the FLIGHT state
+hopping_state_machine hopping_state = FLIGHT;
 
 
 // Keep track of when the RUNNING state was entered
@@ -317,6 +304,163 @@ void STAGING_STATE() {
 }
 
 /**
+ * Runs robot leg in a arc sweep
+ * @param millis_running [description]
+ */
+void gait_test(float millis_running) {
+	float theta_sp, gamma_sp;
+	float t = millis_running / 1000.0;
+	walking_gait_control(t, theta_sp, gamma_sp);
+
+	dual_vesc.set_pid_gains(0.06, 0.0005, 0.05, 0.0005);
+	dual_vesc.pid_update(theta_sp, gamma_sp);
+}
+
+/**
+ * Holds leg in one position using hardcoded gains
+ */
+void hold_test() {
+	/*** STATIONARY COUPLED PID TESTS ***/
+	// 1. strong theta, loose gamma
+	dual_vesc.set_pid_gains(0.08, 0.0005, 0.005, 0.0005);
+	// 2. loose theta, strong gamma
+	// dual_vesc.set_pid_gains(0.005, 0.0005, 0.06, 0.0005);
+	// 3. No theta, strong gamma
+	// dual_vesc.set_pid_gains(0.00, 0.0005, 0.06, 0.001);
+
+	dual_vesc.pid_update(90,60);
+	/*** COUPLED TESTS END ***/
+}
+
+/**
+ * Moves leg up and down
+ * @param millis_running milliseconds since RUNNING state was last entered
+ */
+void jump_test(float millis_running) {
+	float theta_sp, gamma_sp;
+	float t = millis_running / 1000.0;
+	jumping_gait_control(t, theta_sp, gamma_sp);
+
+	dual_vesc.set_pid_gains(0.06, 0.0005, 0.05, 0.0005);
+	dual_vesc.pid_update(theta_sp, gamma_sp);
+}
+
+/**
+ * Shuts off robot leg is perturbed beyond a threshold
+ * @param millis_running [description]
+ */
+void touch_test(float millis_running) {
+	float ia, ib;
+	dual_vesc.read_current(ia,ib);
+
+	// 1. Good for trajectory at 25A: 8.0A
+	// 2. Good for hold at 25A: 3.0A
+	float thres;
+	if(HOLD_TEST) {
+		thres = 4.0;
+	} else if(GAIT_TEST) {
+		thres = 12.0;
+	} else {
+		thres = 2.0;
+	}
+
+	int touch_delay = 500;
+
+	if((abs(ia) > thres || abs(ib) > thres) && (millis_running > touch_delay)) {
+		Serial.println(millis_running);
+		transition_to_ESTOP();
+	}
+}
+
+/**
+ * Executes Raibert-style hopping controller
+ */
+void hop_test() {
+	float theta_sp = 90;
+	float gamma_sp = 30;
+
+	float gamma_deg = dual_vesc.get_gamma();
+
+	switch (hopping_state) {
+		case FLIGHT:
+			// Robot is in flight.
+
+			if(gamma_deg > LOADING_GAMMA_TRIGGER) {
+				hopping_state = LOADING;
+			}
+
+			// Raibert controller actions:
+			// Servo foot to new landing location
+			// TODO servo leg to new theta
+
+			dual_vesc.set_pid_gains(0.08, 0.0005, 0.001, 0.0005); //TODO tune
+			break;
+		case LOADING:
+			// Robot is just touching down.
+
+			if(gamma_deg > COMPRESSION_GAMMA_TRIGGER) {
+				hopping_state = COMPRESSION;
+			}
+
+			// Raibert controller actions:
+			// Apply zero hip torque (aka theta kp = 0)
+
+			// TODO apply zero theta torque
+			dual_vesc.set_pid_gains(0.08, 0.0005, 0.001, 0.0005); //TODO tune
+			break;
+		case COMPRESSION:
+			// Robot leg is undergoing big compression.
+
+			if(gamma_deg > THRUST_GAMMA_TRIGGER) {
+				hopping_state = THRUST;
+			}
+
+			// Raibert controller actions:
+			// Apply hip torque to keep body upright
+			// Apply weak-ish kp for theta controller
+			// TODO implement above
+
+			dual_vesc.set_pid_gains(0.08, 0.0005, 0.001, 0.0005); //TODO tune
+			break;
+		case THRUST:
+			// Robot leg is thrusting upwards.
+
+			if(gamma_deg < UNLOADING_GAMMA_TRIGGER) {
+				hopping_state = UNLOADING;
+			}
+
+			// Raibert controller actions:
+			// Pressurize the leg chamber, ie, make theta kp bigger
+			// Apply hip torque to keep body upright
+			// TODO above
+
+			dual_vesc.set_pid_gains(0.08, 0.0005, 0.080, 0.0005); //TODO tune
+			break;
+		case UNLOADING:
+			// Robot leg is about to leave the ground.
+
+			if(gamma_deg < FLIGHT_GAMMA_TRIGGER) {
+				hopping_state = FLIGHT;
+			}
+
+			// Raibert controller actions:
+			// Stop thrust, ie, keep gamma fixed
+			// Stop applying hip torque
+			// TODO above
+
+			dual_vesc.set_pid_gains(0.08, 0.0005, 0.001, 0.0005); //TODO tune
+			break;
+
+		default:
+			Serial.println("Default hopping state reached! Uh oh!");
+			break;
+	}
+
+	//TODO change below statement to reflect foot placements
+	dual_vesc.pid_update(theta_sp, gamma_sp);
+}
+
+/**
  * Executes any user code and executes on Serial commands
  *
  * Returns 1 if any timed loop (2000hz, 500hz, etc) executed, otherwise 0
@@ -327,96 +471,32 @@ int RUNNING_STATE() {
 	if(elapsed_2000HZ > UPDATE_2000HZ) {
 		elapsed_2000HZ = 0;
 
-		if(HOLD_TEST) {
-			/*** STATIONARY COUPLED PID TESTS ***/
-			// 1. strong theta, loose gamma
-			dual_vesc.set_pid_gains(0.08, 0.0005, 0.005, 0.0005);
-			// 2. loose theta, strong gamma
-			// dual_vesc.set_pid_gains(0.005, 0.0005, 0.06, 0.0005);
-			// 3. No theta, strong gamma
-			// dual_vesc.set_pid_gains(0.00, 0.0005, 0.06, 0.001);
-
-			dual_vesc.pid_update(90,60);
-			/*** COUPLED TESTS END ***/
-	  }
-
 		float millis_running = millis() - running_timestamp;
 
-		/** HOPPING CODE **/
+		/** RAIBERT HOPPING CODE **/
 		if(HOP_TEST){
-			float theta_sp = 90;
-			float gamma_sp = 30;
-			float gamma_deg = dual_vesc.get_gamma();
-
-			if(hopping_state == STANCE) {
-					if(gamma_deg <= 45) {
-						hopping_state = AIR;
-					}
-					dual_vesc.set_pid_gains(0.08, 0.0005, 0.080, 0.0005); //TODO tune
-			} else if(hopping_state == AIR) {
-					if(gamma_deg >= 135){
-						hopping_state = STANCE;
-					}
-					dual_vesc.set_pid_gains(0.08, 0.0005, 0.001, 0.0005); //TODO tune
-			}
-			dual_vesc.pid_update(theta_sp, gamma_sp);
+	  	hop_test();
 		}
-		/*** GAIT TEST ***/
-		if(JUMP_TEST) {
-			float theta_sp, gamma_sp;
-			float t = millis_running / 1000.0;
-			jumping_gait_control(t, theta_sp, gamma_sp);
 
-			dual_vesc.set_pid_gains(0.06, 0.0005, 0.05, 0.0005);
-			dual_vesc.pid_update(theta_sp, gamma_sp);
+		/** Older demos **/
+		if(HOLD_TEST) {
+			hold_test();
+	  }
+		if(JUMP_TEST) {
+			jump_test(millis_running);
 		}
 		if(GAIT_TEST) {
-			float theta_sp, gamma_sp;
-			float t = millis_running / 1000.0;
-			walking_gait_control(t, theta_sp, gamma_sp);
-
-			dual_vesc.set_pid_gains(0.06, 0.0005, 0.05, 0.0005);
-			dual_vesc.pid_update(theta_sp, gamma_sp);
+			gait_test(millis_running);
 		}
-		/*** END GAIT TEST ***/
-
-		/*** TOUCH TEST ***/
 		if(TOUCH_TEST) {
-			float ia, ib;
-			dual_vesc.read_current(ia,ib);
-
-			// 1. Good for trajectory at 25A: 8.0A
-			// 2. Good for hold at 25A: 3.0A
-			float thres;
-			if(HOLD_TEST) {
-				thres = 4.0;
-			} else if(GAIT_TEST) {
-				thres = 12.0;
-			} else {
-				thres = 2.0;
-			}
-
-			int touch_delay = 500;
-
-			if((abs(ia) > thres || abs(ib) > thres) && (millis_running > touch_delay)) {
-				Serial.println(millis_running);
-				transition_to_ESTOP();
-			}
+			touch_test(millis_running);
 		}
-		/*** TOUCH TEST END ***/
 
 		executed_code |= 1;
 	}
   // 1000Hz loop
   if(elapsed_1000HZ > UPDATE_1000HZ) {
     elapsed_1000HZ = 0;
-
-		// vesc1.set_pid_gains(vesc_pos_gain_target.k_p,vesc_pos_gain_target.k_d);
-
-		// Hard-coded values
-		// P=0.05 and D= 0.001 doesn't work with 20A but marginally with 15A
-		// vesc1.set_pid_gains(0.05,0.001);
-		// vesc1.pid_update(180.0);
 
 		executed_code |= 1;
   }
@@ -433,6 +513,10 @@ int RUNNING_STATE() {
 		if(PRINT_DEBUG) {
 			// TODO debug both pid controllers and motors etc etc
 			dual_vesc.print_debug();
+		}
+
+		if(PRINT_HOPPING_STATE) {
+			Serial.println(hopping_state_string(hopping_state));
 		}
 
 		encoder_printing();
@@ -455,6 +539,36 @@ void ESTOP_STATE() {
 		process_VESC_serial();
 	}
 }
+
+/**
+ * Returns string representation of each hopping state
+ * @param  state [description]
+ * @return       [description]
+ */
+String hopping_state_string(hopping_state_machine state) {
+	String out;
+	switch(state) {
+		case FLIGHT:
+			out = "FLIGHT";
+			break;
+		case LOADING:
+			out = "LOADING";
+			break;
+		case COMPRESSION:
+			out = "COMPRESSION";
+			break;
+		case THRUST:
+			out = "THRUST";
+			break;
+		case UNLOADING:
+			out = "UNLOADING";
+			break;
+		default:
+			break;
+	}
+	return out;
+}
+
 
 /**
  * Called when Teensy boots
@@ -524,17 +638,6 @@ void loop() {
 
 		if(PRINT_CPU_USAGE) {
 			print_processor_usage(busy_loops,idle_loops);
-
-			switch(hopping_state) {
-	      case AIR:
-	        Serial.print("AIR");
-	        break;
-	      case STANCE:
-	        Serial.print("STANCE");
-	        break;
-	      default:
-	        break;
-	    }
 		}
 }
 

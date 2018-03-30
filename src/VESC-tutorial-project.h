@@ -19,6 +19,24 @@ void start_encoder_prints();
 void stop_encoder_prints();
 void encoder_printing();
 
+// STATE MACHINE enumerable
+enum controller_state_machine {
+	STAGING,
+	RUNNING,
+	ESTOP
+};
+
+// Enumerable for hopping state. Only relevant for the hop test. State machine
+// within RUNNING.
+enum hopping_state_machine {
+	LOADING,
+	COMPRESSION,
+	THRUST,
+	UNLOADING,
+	FLIGHT
+};
+String hopping_state_string(hopping_state_machine state);
+
 struct vesc_pos_gain_command {
 	float pos;
 	float k_p;
