@@ -404,7 +404,43 @@ int RUNNING_STATE() {
 			}
 		}
 		/*** TOUCH TEST END ***/
-
+        /*** PROBE TEST ***/
+        if(PROBE_TEST){
+            
+            if(dual_vesc.get_gamma() > 0){
+                // Intialize probe to full extension pointing straight down
+                write(dual_vesc.get_theta(), dual_vesc.get_gamma() - 5);
+                // get motor current readings and set threshold
+                float ia, ib;
+                dual_vesc.read_current(ia,ib);
+                float thres = 5.0;
+                int touch_delay = 500;
+                // Check resistance with current spike
+                if((abs(ia) > thres || abs(ib) > thres) && (millis_running > touch_delay)) {
+                    cout << "Hey, I stopped." << endl;
+                    transition_to_ESTOP();
+                    //later on find point
+                    
+                }
+                
+                
+            }else{
+                //full contraction
+                write(dual_vesc.get_theta(), 90);
+                //rotate once
+                write(dual_vesc.get_theta() -15, 90);
+                //full 135 degrees, stop
+                if(dual_vesc.get_theta() <= -45){
+                    write(90, 90);
+                    transition_to_ESTOP();
+                }
+            }
+            
+            
+            
+            
+        }
+        /*** PROBE TEST END ***/ 
 		executed_code |= 1;
 	}
   // 1000Hz loop

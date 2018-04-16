@@ -47,6 +47,7 @@
 #define GAIT_TEST false
 #define HOLD_TEST false
 #define JUMP_TEST false
-#define HOP_TEST true
+#define HOP_TEST false
+#define PROBE_TEST true
 
 #endif
