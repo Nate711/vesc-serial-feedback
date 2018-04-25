@@ -31,6 +31,8 @@ const int UPDATE_2000HZ = 500; //us
 const int UPDATE_1000HZ = 1000; //us
 const int UPDATE_500HZ = 2000; //us
 const int UPDATE_100HZ = 10000; //us
+const int UPDATE_1HZ = 1000000; //us
+
 
 // built-in led pin
 int led_pin = 13;
@@ -48,14 +50,27 @@ int led_pin = 13;
 // Variable to keep track of the last time a debugging print message was sent
 // The elapsedMicros type automatically increments itself every loop execution!
 elapsedMillis last_print_shit;
+elapsedMillis last_bounds_check;
 
 // Variable to keep track of time since 100hz, 500hz, and 1000hz loops
 // were executed
 // The elapsedMicros type automatically increments itself every loop execution!
+elapsedMicros elapsed_1HZ = 0;
 elapsedMicros elapsed_100HZ = 0;
 elapsedMicros elapsed_500HZ = 0;
 elapsedMicros elapsed_1000HZ = 0;
 elapsedMicros elapsed_2000HZ = 0;
+
+long probing_timestamp;
+
+double desired_theta = 90;
+double desired_gamma = 60;
+bool contraction = false;
+//first probe test
+bool first_probe = true;
+//counter
+int counter = 0;
+int counter2 = 0;
 
 // VESC motor objects
 DualVESC dual_vesc(VESC_ENCODER_PERIOD, &VESC1_SERIAL, &VESC2_SERIAL);
@@ -404,43 +419,13 @@ int RUNNING_STATE() {
 			}
 		}
 		/*** TOUCH TEST END ***/
-        /*** PROBE TEST ***/
-        if(PROBE_TEST){
-            
-            if(dual_vesc.get_gamma() > 0){
-                // Intialize probe to full extension pointing straight down
-                write(dual_vesc.get_theta(), dual_vesc.get_gamma() - 5);
-                // get motor current readings and set threshold
-                float ia, ib;
-                dual_vesc.read_current(ia,ib);
-                float thres = 5.0;
-                int touch_delay = 500;
-                // Check resistance with current spike
-                if((abs(ia) > thres || abs(ib) > thres) && (millis_running > touch_delay)) {
-                    cout << "Hey, I stopped." << endl;
-                    transition_to_ESTOP();
-                    //later on find point
-                    
-                }
-                
-                
-            }else{
-                //full contraction
-                write(dual_vesc.get_theta(), 90);
-                //rotate once
-                write(dual_vesc.get_theta() -15, 90);
-                //full 135 degrees, stop
-                if(dual_vesc.get_theta() <= -45){
-                    write(90, 90);
-                    transition_to_ESTOP();
-                }
-            }
-            
-            
-            
-            
-        }
-        /*** PROBE TEST END ***/ 
+		/**PROBE TEST***/
+
+		if(PROBE_TEST){
+			probe();
+		}
+		/*** PROBE TEST END ***/
+
 		executed_code |= 1;
 	}
   // 1000Hz loop
@@ -475,6 +460,15 @@ int RUNNING_STATE() {
 
 		executed_code |= 1;
 	}
+
+	if(elapsed_1HZ > UPDATE_1HZ) {
+		elapsed_1HZ = 0;
+
+
+
+	}
+
+
 	return executed_code;
 }
 
@@ -708,3 +702,52 @@ void update_pos_and_gain_target(float pos, float kp, float kd) {
 	vesc_pos_gain_target.k_p = kp;
 	vesc_pos_gain_target.k_d = kd;
 }
+
+void initiate_probe(){
+	probing_timestamp = millis();
+	dual_vesc.set_pid_gains(0.05, 0.002, 0.005, 0.001);
+	Serial.println("PD gains set.");
+	Serial.println("Probe test initialized.");
+}
+void probing_control(float t, float& theta_sp){
+	float theta_amp = 45.0;
+	float theta_offset = 45.0;
+	float freq = 0.0005; //
+	theta_sp = sinusoid(t, theta_amp, freq, 0.0 - 1.57, theta_offset);
+}
+void probe(){
+		float millis_probing = millis() - probing_timestamp;
+		if(millis_probing >= 2000) probing_timestamp = millis();
+		float theta_sp;
+		float gamma_sp = 30.0;
+		probing_control(millis_probing, theta_sp);
+		//Serial.println(millis_probing);
+
+		if(first_probe){
+			first_probe = false;
+			initiate_probe();
+		}else{
+			//Serial.println(gamma_sp);
+
+			// if(/*dual_vesc.get_theta() < 0 &&*/ last_bounds_check > 1000) {
+			// 	Serial.println("Motor angle A:");
+			// 	Serial.println(dual_vesc.read_A());
+			// 	Serial.println("Motor angle B:");
+			// 	Serial.println(dual_vesc.read_B());
+			// 	Serial.println("Theta setpoint:");
+			// 	Serial.println(theta_sp);
+			// 	last_bounds_check = 0;
+			// }
+			// if(/*dual_vesc.get_theta() > 90 &&*/ last_bounds_check > 1000) {
+			// 	Serial.println("Motor angle A:");
+			// 	Serial.println(dual_vesc.read_A());
+			// 	Serial.println("Motor angle B:");
+			// 	Serial.println(dual_vesc.read_B());
+			// 	Serial.println("Theta setpoint:");
+			// 	Serial.println(theta_sp);
+			// 	last_bounds_check = 0;
+			// }
+			dual_vesc.pid_update(theta_sp, gamma_sp);
+		}
+}
+/*** PROBE TEST END ***/

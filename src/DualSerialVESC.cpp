@@ -227,7 +227,7 @@ void DualVESC::write_current(float current_A, float current_B) {
 * @return motor position
 */
 float DualVESC::read_A() {
-  return vesc_to_normalized_angle(vesc_angle_A, encoder_offset_A, encoder_direction_A);
+  return vesc_angle_A;
 }
 
 /**
@@ -237,7 +237,7 @@ float DualVESC::read_A() {
 * @return motor position
 */
 float DualVESC::read_B() {
-  return vesc_to_normalized_angle(vesc_angle_B, encoder_offset_B, encoder_direction_B);
+  return vesc_angle_B;
 }
 
 /**
@@ -426,8 +426,8 @@ float DualVESC::get_gamma() {
 */
 float DualVESC::get_theta() {
   // Calculate gamma and return
-  float theta_deg = theta(vesc_angle_A,vesc_angle_B);
-  return theta_deg;
+  return theta(vesc_angle_A,vesc_angle_B);
+  //return theta_deg;
 }
 
 /**

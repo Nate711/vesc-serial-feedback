@@ -31,10 +31,12 @@ void transition_to_running();
 void transition_to_ESTOP();
 void transition_to_STAGING();
 
+
 // State functions
 void STAGING_STATE();
 int RUNNING_STATE();
 void ESTOP_STATE();
+
 
 // Shit functions
 void print_shit();
@@ -43,5 +45,8 @@ void print_shit();
 int process_serial();
 int process_VESC_serial();
 
-
+//PROBE
+void initiate_probe();
+void probing_control(float t, float& theta_sp);
+void probe();
 #endif
