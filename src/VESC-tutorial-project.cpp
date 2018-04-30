@@ -705,7 +705,7 @@ void update_pos_and_gain_target(float pos, float kp, float kd) {
 
 void initiate_probe(){
 	probing_timestamp = millis();
-	dual_vesc.set_pid_gains(0.05, 0.002, 0.005, 0.001);
+	dual_vesc.set_pid_gains(0.1, 0.002, 0.02, 0.001);
 	Serial.println("PD gains set.");
 	Serial.println("Probe test initialized.");
 }
@@ -717,9 +717,9 @@ void probing_control(float t, float& theta_sp){
 }
 void probe(){
 		float millis_probing = millis() - probing_timestamp;
-		if(millis_probing >= 2000) probing_timestamp = millis();
+		//if(millis_probing >= 2000) probing_timestamp = millis();
 		float theta_sp;
-		float gamma_sp = 30.0;
+		float gamma_sp = 45.0;
 		probing_control(millis_probing, theta_sp);
 		//Serial.println(millis_probing);
 
@@ -729,23 +729,24 @@ void probe(){
 		}else{
 			//Serial.println(gamma_sp);
 
-			// if(/*dual_vesc.get_theta() < 0 &&*/ last_bounds_check > 1000) {
-			// 	Serial.println("Motor angle A:");
-			// 	Serial.println(dual_vesc.read_A());
-			// 	Serial.println("Motor angle B:");
-			// 	Serial.println(dual_vesc.read_B());
-			// 	Serial.println("Theta setpoint:");
-			// 	Serial.println(theta_sp);
-			// 	last_bounds_check = 0;
-			// }
-			// if(/*dual_vesc.get_theta() > 90 &&*/ last_bounds_check > 1000) {
-			// 	Serial.println("Motor angle A:");
-			// 	Serial.println(dual_vesc.read_A());
-			// 	Serial.println("Motor angle B:");
-			// 	Serial.println(dual_vesc.read_B());
-			// 	Serial.println("Theta setpoint:");
-			// 	Serial.println(theta_sp);
-			// 	last_bounds_check = 0;
+			if(/*dual_vesc.get_theta() < 0 &&*/ last_bounds_check > 100) {
+				//Serial.println("Motor angle A:");
+				Serial.print(dual_vesc.read_A());
+				Serial.print("\t");
+				// Serial.println("Motor angle B:");
+				Serial.println(dual_vesc.read_B());
+				// Serial.println("Theta setpoint:");
+				// Serial.println(theta_sp);
+				last_bounds_check = 0;
+			}
+			// if(/*dual_vesc.get_theta() > 90 &&*/ last_bounds_check > 100) {
+			// 	// Serial.println("Motor angle A:");
+			// 	// Serial.println(dual_vesc.read_A());
+			// 	// Serial.println("Motor angle B:");
+			// 	// Serial.println(dual_vesc.read_B());
+			// 	// Serial.println("Theta setpoint:");
+			// 	// Serial.println(theta_sp);
+			// 	// last_bounds_check = 0;
 			// }
 			dual_vesc.pid_update(theta_sp, gamma_sp);
 		}

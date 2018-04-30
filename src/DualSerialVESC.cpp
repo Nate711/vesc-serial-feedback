@@ -1,16 +1,13 @@
 /*
 Copyright 2012-2014 Nathan Kau nathankau@stanford.edu
-
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
-
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
-
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -227,7 +224,7 @@ void DualVESC::write_current(float current_A, float current_B) {
 * @return motor position
 */
 float DualVESC::read_A() {
-  return vesc_angle_A;
+  return vesc_to_normalized_angle(vesc_angle_A, encoder_offset_A, encoder_direction_A);
 }
 
 /**
@@ -237,7 +234,7 @@ float DualVESC::read_A() {
 * @return motor position
 */
 float DualVESC::read_B() {
-  return vesc_angle_B;
+  return vesc_to_normalized_angle(vesc_angle_B, encoder_offset_B, encoder_direction_B);
 }
 
 /**
@@ -251,11 +248,11 @@ void DualVESC::update_angle_A(float angle) {
 
   if (corrected - prev_angle_A > 180) {
     // TODO Document that the initial value of prev angle will fuck up your rot count
-    if(prev_angle_A != 0.0) {
+    if(prev_angle_A != -1.0) {
       num_rotations_A--;
     }
   } else if (corrected - prev_angle_A < -180) {
-    if(prev_angle_A != 0.0) {
+    if(prev_angle_A != -1.0) {
       num_rotations_A++;
     }
   }
@@ -284,11 +281,11 @@ void DualVESC::update_angle_B(float angle) {
 
   // TODO TODO TODO MASSIVE BUG MUST START LEG IN CORRECT POSITION OR BREAKS
   if (corrected - prev_angle_B > 180) {
-    if(prev_angle_B != 0.0) {
+    if(prev_angle_B != -1.0) {
       num_rotations_B--;
     }
   } else if (corrected - prev_angle_B < -180) {
-    if(prev_angle_B != 0.0) {
+    if(prev_angle_B != -1.0) {
       num_rotations_B++;
     }
   }
@@ -426,8 +423,8 @@ float DualVESC::get_gamma() {
 */
 float DualVESC::get_theta() {
   // Calculate gamma and return
-  return theta(vesc_angle_A,vesc_angle_B);
-  //return theta_deg;
+  float theta_deg = theta(vesc_angle_A,vesc_angle_B);
+  return theta_deg;
 }
 
 /**

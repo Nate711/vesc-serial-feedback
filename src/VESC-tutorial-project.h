@@ -23,6 +23,7 @@ struct vesc_pos_gain_command {
 	float pos;
 	float k_p;
 	float k_d;
+	float k_i;
 };
 void send_vesc_target(VESC &vesc, struct vesc_pos_gain_command &comm);
 
@@ -46,7 +47,8 @@ int process_serial();
 int process_VESC_serial();
 
 //PROBE
-void initiate_probe();
-void probing_control(float t, float& theta_sp);
 void probe();
+void probing_control();
+void initiate_probe();
+
 #endif
