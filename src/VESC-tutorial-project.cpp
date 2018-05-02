@@ -705,7 +705,7 @@ void update_pos_and_gain_target(float pos, float kp, float kd) {
 
 void initiate_probe(){
 	probing_timestamp = millis();
-	dual_vesc.set_pid_gains(0.1, 0.002, 0.02, 0.001);
+	dual_vesc.set_pid_gains(0.2, 0.002, 0.02, 0.001);
 	Serial.println("PD gains set.");
 	Serial.println("Probe test initialized.");
 }
